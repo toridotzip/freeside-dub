@@ -47,7 +47,7 @@ export class SpaceStationScene {
       powerPreference: 'low-power',
     });
     this.pixelRatio = Math.min(window.devicePixelRatio, 1);
-    this.bloomScale = 0.75;
+    this.bloomDownscaleFactor = 0.75;
     this.maxFps = 60;
     this.frameInterval = 1 / this.maxFps;
     this.accumulatedDt = 0;
@@ -69,7 +69,7 @@ export class SpaceStationScene {
     this.composer.addPass(this.fxaaPass);*/
 
     this.bloomPass = new UnrealBloomPass(
-      new THREE.Vector2(window.innerWidth * this.bloomScale, window.innerHeight * this.bloomScale),
+      new THREE.Vector2(window.innerWidth * this.bloomDownscaleFactor, window.innerHeight * this.bloomDownscaleFactor),
       0.62,
       0.55,
       0.52,
@@ -561,7 +561,7 @@ export class SpaceStationScene {
       1 / (window.innerWidth * this.pixelRatio),
       1 / (window.innerHeight * this.pixelRatio),
     );*/
-    this.bloomPass.setSize(window.innerWidth * this.bloomScale, window.innerHeight * this.bloomScale);
+    this.bloomPass.setSize(window.innerWidth * this.bloomDownscaleFactor, window.innerHeight * this.bloomDownscaleFactor);
   }
 
   updateCamera(time) {
@@ -693,8 +693,8 @@ export class SpaceStationScene {
     this.accumulatedDt += dt;
     if (this.accumulatedDt < this.frameInterval) return;
 
-    const frameDt = this.accumulatedDt;
-    this.accumulatedDt = 0;
+    const frameDt = this.frameInterval;
+    this.accumulatedDt %= this.frameInterval;
     const time = this.clock.getElapsedTime();
 
     this.updateCamera(time);
