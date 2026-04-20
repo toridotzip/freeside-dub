@@ -305,6 +305,96 @@ button:active {
   text-shadow: 0 0 10px rgba(121, 235, 255, 0.08);
 }
 
+.startup-terminal {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 11;
+  width: min(920px, calc(100vw - 4rem));
+  aspect-ratio: 5 / 3;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transform: translate3d(calc(-50% + var(--boot-terminal-shift-x, 0px)),
+      calc(-50% + var(--boot-terminal-shift-y, 0px)),
+      0) scale(var(--boot-terminal-scale-x, 1), var(--boot-terminal-scale-y, 1));
+  transform-origin: center;
+  transition: opacity 0.07s ease, transform 0.12s ease, filter 0.12s ease, visibility 0.12s ease;
+  filter: drop-shadow(0 18px 40px rgba(0, 0, 0, 0.5));
+}
+
+.startup-terminal.hidden {
+  visibility: hidden;
+}
+
+.startup-terminal.visible {
+  opacity: var(--boot-terminal-opacity, 0.96);
+  visibility: visible;
+}
+
+.startup-terminal.closing {
+  opacity: 0;
+  --boot-terminal-scale-x: 1.02;
+  --boot-terminal-scale-y: 0.015;
+  filter: blur(0.8px) drop-shadow(0 14px 24px rgba(0, 0, 0, 0.3));
+}
+
+.startup-terminal::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.startup-terminal::after {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 14%, transparent 86%, rgba(255, 255, 255, 0.03));
+  opacity: var(--boot-terminal-glow, 0.08);
+}
+
+.startup-terminal__frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  image-rendering: auto;
+  user-select: none;
+}
+
+.startup-terminal__viewport {
+  position: absolute;
+  top: 48px;
+  left: 4px;
+  right: 20px;
+  bottom: 2px;
+  overflow: hidden;
+}
+
+.startup-terminal__viewport::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.02) 0 1px, transparent 1px 2px);
+  pointer-events: none;
+}
+
+.startup-terminal__body {
+  display: grid;
+  gap: 0;
+  align-content: start;
+}
+
+.startup-terminal__line {
+  color: #c9c9c9;
+  font-family: Consolas, 'Lucida Console', 'Courier New', monospace;
+  font-size: clamp(11px, 1.05vw, 17px);
+  line-height: 1.2;
+  letter-spacing: 0;
+  white-space: pre;
+  text-shadow: none;
+  font-weight: 400;
+  opacity: 0.96;
+}
+
 @media (max-width: 720px) {
   .glass-panel {
     padding: 2rem 1.5rem;
@@ -325,5 +415,21 @@ button:active {
     right: 1rem;
     bottom: 1rem;
     width: min(320px, calc(100vw - 2rem));
+  }
+
+  .startup-terminal {
+    width: min(96vw, 700px);
+  }
+
+  .startup-terminal__viewport {
+    top: 52px;
+    left: 22px;
+    right: 16px;
+    bottom: 18px;
+    padding: 6px 8px 8px;
+  }
+
+  .startup-terminal__line {
+    font-size: clamp(9px, 1.8vw, 13px);
   }
 }

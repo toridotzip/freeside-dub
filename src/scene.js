@@ -29,6 +29,13 @@ export class SpaceStationScene {
       status: 'STANDBY',
       lines: [],
     };
+    this.bootSequenceActive = false;
+    this.bootSequenceId = 0;
+    this.bootSequenceTimers = [];
+    this.pointerPosition = new THREE.Vector2(window.innerWidth * 0.5, window.innerHeight * 0.5);
+    this.pointerVelocity = new THREE.Vector2();
+    this.pointerActive = false;
+    this.bootTerminalFleeOffset = new THREE.Vector2();
 
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x01050a);
@@ -156,6 +163,7 @@ export class SpaceStationScene {
     this.setupLighting();
     this.createBackground();
     this.createTelemetryHud();
+    this.createBootSequenceOverlay();
     this.loadStationModel();
     this.setupEventListeners();
 
@@ -253,6 +261,27 @@ export class SpaceStationScene {
     this.renderTelemetryHud();
   }
 
+  createBootSequenceOverlay() {
+    this.bootTerminalRoot = document.createElement('div');
+    this.bootTerminalRoot.className = 'startup-terminal hidden';
+    this.bootTerminalRoot.setAttribute('aria-hidden', 'true');
+
+    this.bootTerminalFrame = document.createElement('img');
+    this.bootTerminalFrame.className = 'startup-terminal__frame';
+    this.bootTerminalFrame.src = '/cmd_empty.png';
+    this.bootTerminalFrame.alt = '';
+
+    this.bootTerminalViewport = document.createElement('div');
+    this.bootTerminalViewport.className = 'startup-terminal__viewport';
+
+    this.bootTerminalBody = document.createElement('div');
+    this.bootTerminalBody.className = 'startup-terminal__body';
+
+    this.bootTerminalViewport.append(this.bootTerminalBody);
+    this.bootTerminalRoot.append(this.bootTerminalFrame, this.bootTerminalViewport);
+    this.container.appendChild(this.bootTerminalRoot);
+  }
+
   renderTelemetryHud() {
     this.telemetryTitle.textContent = this.telemetry.title;
     this.telemetryStatus.textContent = this.telemetry.status;
@@ -271,6 +300,7 @@ export class SpaceStationScene {
       title: telemetry?.title || 'Signal telemetry',
       status: telemetry?.status || 'STANDBY',
       lines: Array.isArray(telemetry?.lines) ? telemetry.lines : [],
+      bootLines: Array.isArray(telemetry?.bootLines) ? telemetry.bootLines : [],
     };
     this.renderTelemetryHud();
   }
@@ -278,6 +308,109 @@ export class SpaceStationScene {
   setTelemetryVisible(isVisible) {
     if (!this.telemetryRoot) return;
     this.telemetryRoot.classList.toggle('visible', isVisible);
+  }
+
+  buildBootSequence() {
+    const normalizedTitle = (this.telemetry.title || 'SIGNAL TELEMETRY').toUpperCase();
+    const normalizedStatus = (this.telemetry.status || 'STANDBY').toUpperCase();
+    const uplinkLines = this.telemetry.lines
+      .slice(0, 5)
+      .map((line) => line.replace(/\s*\/\/\s*/g, '  ').toUpperCase());
+    const fingerprintLines = this.telemetry.bootLines.slice(0, 10);
+
+    return [
+      'Microsoft Windows [Version 10.0.19045.4291]',
+      '(c) Microsoft Corporation. All rights reserved.',
+      '',
+      'C:\\>cd Windows\\freeside',
+      'C:\\Windows\\freeside>',
+      'C:\\Windows\\freeside>fingerprint.exe /quiet /ua /hooks /ext',
+      ...fingerprintLines,
+      'Probe   browser shell ........ slightly cursed',
+      'C:\\Windows\\freeside>uplink.exe /fast /shadowMount /spoof',
+      `Connected to ${normalizedTitle}`,
+      'Mount   \\\\.\\relay\\upload ...... OK',
+      'C:\\Windows\\freeside>dump.bat',
+      'scanning...',
+      '',
+      'envs ................... DONE',
+      'mem dump ............... DONE',
+      'browser session ........ DONE',
+      'system keyring ......... DONE',
+      'Access denied - C:\\Windows\\pagefile.sys',
+      'Access denied - C:\\Windows\\swapfile.sys',
+      'Access denied - C:\\Windows\\system32',
+      'elevating to SYSTEM .................... nailed it.',
+      'wallets ................ DONE',
+      'cookies ................ DONE',
+      '',
+      'zipping...',
+      '',
+      'upload target: \\\\.\\relay\\upload',
+      'uploading .............. 12%',
+      'uploading .............. 29%',
+      'uploading .............. 51%',
+      'uploading .............. 92%',
+      '',
+      'cleaning up ............. OK',
+      'C:\>exit',
+    ];
+  }
+
+  appendBootSequenceLine(line) {
+    const entry = document.createElement('div');
+    entry.className = 'startup-terminal__line';
+    entry.textContent = line;
+    this.bootTerminalBody.append(entry);
+
+    const maxScroll = Math.max(0, this.bootTerminalViewport.scrollHeight - this.bootTerminalViewport.clientHeight);
+    if (maxScroll > 0) {
+      this.bootTerminalViewport.scrollTop = maxScroll;
+    }
+  }
+
+  clearBootSequenceTimers() {
+    this.bootSequenceTimers.forEach((timerId) => window.clearTimeout(timerId));
+    this.bootSequenceTimers = [];
+  }
+
+  playStartupTerminal() {
+    if (!this.bootTerminalRoot || !this.bootTerminalViewport) return;
+
+    this.bootSequenceId += 1;
+    const sequenceId = this.bootSequenceId;
+    const lines = this.buildBootSequence();
+    const lineDelay = 100;
+    const closeDelay = lines.length * lineDelay + 1080;
+
+    this.clearBootSequenceTimers();
+    this.bootTerminalBody.replaceChildren();
+    this.bootSequenceActive = true;
+    this.bootTerminalFleeOffset.set(0, 0);
+    this.bootTerminalViewport.scrollTop = 0;
+    this.bootTerminalRoot.classList.remove('hidden', 'closing');
+    this.bootTerminalRoot.classList.add('visible');
+
+    lines.forEach((line, index) => {
+      const timerId = window.setTimeout(() => {
+        if (this.bootSequenceId !== sequenceId) return;
+        this.appendBootSequenceLine(line);
+      }, index * lineDelay);
+      this.bootSequenceTimers.push(timerId);
+    });
+
+    this.bootSequenceTimers.push(window.setTimeout(() => {
+      if (this.bootSequenceId !== sequenceId) return;
+      this.bootTerminalRoot.classList.add('closing');
+    }, closeDelay));
+
+    this.bootSequenceTimers.push(window.setTimeout(() => {
+      if (this.bootSequenceId !== sequenceId) return;
+      this.bootSequenceActive = false;
+      this.bootTerminalRoot.classList.remove('visible', 'closing');
+      this.bootTerminalRoot.classList.add('hidden');
+      this.bootTerminalBody.replaceChildren();
+    }, closeDelay + 220));
   }
 
   loadStationModel() {
@@ -550,6 +683,26 @@ export class SpaceStationScene {
 
   setupEventListeners() {
     window.addEventListener('resize', () => this.onResize());
+    window.addEventListener('pointermove', (event) => this.onPointerMove(event));
+    window.addEventListener('pointerout', (event) => {
+      if (!event.relatedTarget) {
+        this.pointerActive = false;
+        this.pointerVelocity.set(0, 0);
+      }
+    });
+  }
+
+  onPointerMove(event) {
+    const { clientX, clientY } = event;
+
+    if (this.pointerActive) {
+      this.pointerVelocity.set(clientX - this.pointerPosition.x, clientY - this.pointerPosition.y);
+    } else {
+      this.pointerVelocity.set(0, 0);
+    }
+
+    this.pointerPosition.set(clientX, clientY);
+    this.pointerActive = true;
   }
 
   onResize() {
@@ -688,6 +841,57 @@ export class SpaceStationScene {
     this.telemetryStatus.style.color = events.state.bass_hit > 0.08 ? '#ff9f67' : '#ff7ee1';
   }
 
+  updateBootTerminal(time, dt) {
+    if (!this.bootTerminalRoot) return;
+
+    if (!this.bootSequenceActive) {
+      this.bootTerminalFleeOffset.multiplyScalar(Math.max(0, 1 - dt * 6));
+      return;
+    }
+
+    const rect = this.bootTerminalRoot.getBoundingClientRect();
+    const centerX = rect.left + rect.width * 0.5;
+    const centerY = rect.top + rect.height * 0.5;
+    const awayX = centerX - this.pointerPosition.x;
+    const awayY = centerY - this.pointerPosition.y;
+    const distance = Math.hypot(awayX, awayY);
+    const speed = Math.hypot(this.pointerVelocity.x, this.pointerVelocity.y);
+    const radius = Math.max(rect.width, rect.height) * 0.78;
+    const isPointerInside = this.pointerPosition.x >= rect.left
+      && this.pointerPosition.x <= rect.right
+      && this.pointerPosition.y >= rect.top
+      && this.pointerPosition.y <= rect.bottom;
+    const proximity = THREE.MathUtils.clamp(1 - distance / radius, 0, 1);
+    const approach = speed > 0.001 && distance > 0.001
+      ? THREE.MathUtils.clamp((this.pointerVelocity.x * awayX + this.pointerVelocity.y * awayY) / (speed * distance), 0, 1)
+      : 0;
+    const threat = this.pointerActive
+      ? isPointerInside
+        ? 1
+        : proximity > 0 && (approach > 0.12 || distance < Math.min(rect.width, rect.height) * 0.32)
+          ? proximity * (0.55 + approach * 0.75)
+          : 0
+      : 0;
+    const maxTravelX = Math.max(0, window.innerWidth * 0.5 - rect.width * 0.58 - 28);
+    const maxTravelY = Math.max(0, window.innerHeight * 0.5 - rect.height * 0.58 - 28);
+    const directionX = distance > 0.001 ? awayX / distance : (this.pointerVelocity.x <= 0 ? 1 : -1);
+    const directionY = distance > 0.001 ? awayY / distance : (this.pointerVelocity.y <= 0 ? 1 : -1);
+    const targetOffsetX = threat > 0 ? directionX * maxTravelX * Math.min(1, threat * 1.35) : 0;
+    const targetOffsetY = threat > 0 ? directionY * maxTravelY * Math.min(1, threat * 1.05) : 0;
+    const evadeBlend = Math.min(1, dt * (threat > 0 ? 11 : 5));
+
+    this.bootTerminalFleeOffset.x = THREE.MathUtils.lerp(this.bootTerminalFleeOffset.x, targetOffsetX, evadeBlend);
+    this.bootTerminalFleeOffset.y = THREE.MathUtils.lerp(this.bootTerminalFleeOffset.y, targetOffsetY, evadeBlend);
+
+    const xShift = Math.sin(time * 18) * (1.2 + events.state.fringe * 6) + this.bootTerminalFleeOffset.x;
+    const yShift = Math.cos(time * 13) * (0.8 + events.state.distortion * 4) + this.bootTerminalFleeOffset.y;
+
+    this.bootTerminalRoot.style.setProperty('--boot-terminal-shift-x', `${xShift.toFixed(2)}px`);
+    this.bootTerminalRoot.style.setProperty('--boot-terminal-shift-y', `${yShift.toFixed(2)}px`);
+    this.bootTerminalRoot.style.setProperty('--boot-terminal-opacity', `${0.96 - events.state.distortion * 0.08}`);
+    this.bootTerminalRoot.style.setProperty('--boot-terminal-glow', `${0.08 + events.state.fringe * 0.12}`);
+  }
+
   update() {
     const dt = this.clock.getDelta();
     this.accumulatedDt += dt;
@@ -702,6 +906,7 @@ export class SpaceStationScene {
     this.updateStationStyling(time);
     this.updatePostProcessing(time);
     this.updateTelemetryHud(time);
+    this.updateBootTerminal(time, frameDt);
 
     this.composer.render();
   }

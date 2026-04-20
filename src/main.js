@@ -132,7 +132,122 @@ function renderMetadata(container, entries) {
   });
 }
 
-function buildTerminalTelemetry(audioSource) {
+function sanitizeTerminalValue(value, maxLength = 54) {
+  const normalized = String(value ?? 'unknown')
+    .replace(/\s+/g, ' ')
+    .replace(/[^\x20-\x7E]/g, '?')
+    .trim();
+
+  if (!normalized) {
+    return 'UNKNOWN';
+  }
+
+  return normalized.slice(0, maxLength).toUpperCase();
+}
+
+function detectBrowserName(userAgent, brands) {
+  const brandLabel = brands.join(' ');
+
+  if (brandLabel.includes('Brave') || navigator.brave) return 'BRAVE';
+  if (/Edg\//.test(userAgent) || brandLabel.includes('Microsoft Edge')) return 'EDGE';
+  if (/OPR\//.test(userAgent) || brandLabel.includes('Opera')) return 'OPERA';
+  if (/Firefox\//.test(userAgent) || brandLabel.includes('Firefox')) return 'FIREFOX';
+  if (/Chrome\//.test(userAgent) || brandLabel.includes('Chromium') || brandLabel.includes('Google Chrome')) return 'CHROME';
+  if (/Safari\//.test(userAgent)) return 'SAFARI';
+
+  return 'UNKNOWN BROWSER';
+}
+
+function detectOperatingSystem(userAgent, platformHint) {
+  const platform = `${platformHint || ''} ${userAgent}`;
+
+  if (/Windows/i.test(platform)) return 'WINDOWS';
+  if (/Android/i.test(platform)) return 'ANDROID';
+  if (/(iPhone|iPad|iPod)/i.test(platform)) return 'IOS';
+  if (/Mac/i.test(platform)) return 'MACOS';
+  if (/Linux/i.test(platform)) return 'LINUX';
+
+  return 'UNKNOWN OS';
+}
+
+function detectEngineName(userAgent) {
+  if (/Firefox\//.test(userAgent)) return 'GECKO';
+  if (/AppleWebKit\//.test(userAgent) && /Chrome\//.test(userAgent)) return 'BLINK';
+  if (/AppleWebKit\//.test(userAgent)) return 'WEBKIT';
+
+  return 'UNKNOWN ENGINE';
+}
+
+function collectExtensionSignals() {
+  const hits = [];
+  const root = document.documentElement;
+  const ethereumProviders = Array.isArray(window.ethereum?.providers)
+    ? window.ethereum.providers
+    : window.ethereum
+      ? [window.ethereum]
+      : [];
+
+  if (ethereumProviders.some((provider) => provider?.isMetaMask)) hits.push('METAMASK');
+  if (ethereumProviders.some((provider) => provider?.isCoinbaseWallet)) hits.push('COINBASE');
+  if ('__REACT_DEVTOOLS_GLOBAL_HOOK__' in window) hits.push('REACT DEVTOOLS');
+  if ('__VUE_DEVTOOLS_GLOBAL_HOOK__' in window) hits.push('VUE DEVTOOLS');
+  if (document.querySelector('style[data-darkreader-mode], #dark-reader-style, meta[name="darkreader-lock"]')) hits.push('DARK READER');
+  if (document.querySelector('[data-new-gr-c-s-check-loaded], grammarly-extension, grammarly-desktop-integration')) hits.push('GRAMMARLY');
+  if (root.hasAttribute('data-lt-installed')) hits.push('LANGUAGETOOL');
+
+  return [...new Set(hits)];
+}
+
+function buildRuntimeProfile() {
+  const userAgent = navigator.userAgent || 'unknown';
+  const brands = Array.isArray(navigator.userAgentData?.brands)
+    ? navigator.userAgentData.brands.map(({ brand, version }) => `${brand} ${version}`)
+    : [];
+  const browser = detectBrowserName(userAgent, brands);
+  const operatingSystem = detectOperatingSystem(userAgent, navigator.userAgentData?.platform || navigator.platform);
+  const engine = detectEngineName(userAgent);
+  const languages = (Array.isArray(navigator.languages) && navigator.languages.length
+    ? navigator.languages
+    : [navigator.language]
+  ).filter(Boolean);
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'unknown';
+  const extensionSignals = collectExtensionSignals();
+  const extensionSummary = extensionSignals.length ? extensionSignals.join(', ') : 'NO EASY HOOKS';
+  const screenSummary = window.screen
+    ? `${window.screen.width}x${window.screen.height} / ${window.screen.colorDepth}BPP`
+    : 'SCREEN UNKNOWN';
+  const resourceSummary = [
+    navigator.hardwareConcurrency ? `${navigator.hardwareConcurrency} THREADS` : 'THREADS ?',
+    navigator.deviceMemory ? `${navigator.deviceMemory}GB HINT` : 'MEM ?',
+  ].join(' / ');
+  const inputSummary = navigator.maxTouchPoints ? `${navigator.maxTouchPoints} TOUCH POINTS` : 'MOUSE BIAS';
+  const dntValue = navigator.doNotTrack === '1'
+    ? 'ON'
+    : navigator.doNotTrack === '0'
+      ? 'OFF'
+      : 'UNSET';
+  const brandSummary = brands.length ? brands.join(' | ') : 'UA-CH WITHHELD';
+
+  return {
+    browser,
+    operatingSystem,
+    engine,
+    extensionSummary,
+    bootLines: [
+      `Probe   client shell ......... ${sanitizeTerminalValue(`${browser} / ${operatingSystem}`, 28)}`,
+      `Probe   render engine ........ ${sanitizeTerminalValue(engine, 28)}`,
+      `Probe   ua brands ............ ${sanitizeTerminalValue(brandSummary, 42)}`,
+      `Probe   locale / zone ........ ${sanitizeTerminalValue(`${languages.slice(0, 3).join(', ')} / ${timezone}`, 42)}`,
+      `Probe   screen lattice ....... ${sanitizeTerminalValue(screenSummary, 42)}`,
+      `Probe   cores / mem .......... ${sanitizeTerminalValue(resourceSummary, 42)}`,
+      `Probe   input residue ........ ${sanitizeTerminalValue(inputSummary, 42)}`,
+      `Probe   do-not-track ......... ${sanitizeTerminalValue(dntValue, 42)}`,
+      `Probe   ext residue .......... ${sanitizeTerminalValue(extensionSummary, 42)}`,
+    ],
+  };
+}
+
+function buildTerminalTelemetry(audioSource, runtimeProfile) {
   const metadata = audioSource.metadata;
 
   return {
@@ -141,11 +256,14 @@ function buildTerminalTelemetry(audioSource) {
     lines: [
       `SOURCE // ${metadata.title}`,
       `MODE   // ${audioSource.type === 'stream' ? 'LIVE RELAY' : 'LOCAL ARCHIVE'}`,
+      `CLIENT // ${runtimeProfile.browser} / ${runtimeProfile.operatingSystem}`,
+      `ENGINE // ${runtimeProfile.engine}`,
+      `EXTSIG // ${runtimeProfile.extensionSummary}`,
       `GENRE  // ${metadata.genre}`,
       `FORMAT // ${metadata.format}`,
-      `RATE   // ${metadata.bitrate ? `${metadata.bitrate} KBPS` : 'N/A'}`,
       `PEERS  // ${metadata.listeners ? `At least ${metadata.listeners}` : 'N/A'}`,
     ],
+    bootLines: runtimeProfile.bootLines,
   };
 }
 
@@ -164,6 +282,7 @@ async function init() {
   new FaviconCycler().start();
 
   scene = new SpaceStationScene(canvasContainer);
+  const runtimeProfile = buildRuntimeProfile();
   setMode(modeLabel, 'Deep space telemetry');
   setStatus(statusLabel, 'Polling uplink');
 
@@ -173,7 +292,7 @@ async function init() {
   hint.textContent = audioSource.hintText;
   renderMetadata(metadataContainer, buildMetadataEntries(audioSource));
   setMode(modeLabel, audioSource.modeLabel);
-  scene.setTelemetry(buildTerminalTelemetry(audioSource));
+  scene.setTelemetry(buildTerminalTelemetry(audioSource, runtimeProfile));
 
   audio.load(audioSource).then(() => {
     startBtn.innerText = audioSource.buttonLabel;
@@ -196,6 +315,7 @@ async function init() {
       lastTime = performance.now();
       uiOverlay.classList.add('hidden');
       scene.setTelemetryVisible(true);
+      setTimeout(() => scene.playStartupTerminal(), 1000);
 
       events.state.distortion = 1.4;
       events.state.fringe = 0.8;
