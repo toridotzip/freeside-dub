@@ -381,7 +381,7 @@ export class SpaceStationScene {
     const sequenceId = this.bootSequenceId;
     const lines = this.buildBootSequence();
     const lineDelay = 100;
-    const closeDelay = lines.length * lineDelay + 1080;
+    const closeDelay = lines.length * lineDelay + 2000;
 
     this.clearBootSequenceTimers();
     this.bootTerminalBody.replaceChildren();
@@ -876,8 +876,13 @@ export class SpaceStationScene {
     const maxTravelY = Math.max(0, window.innerHeight * 0.5 - rect.height * 0.58 - 28);
     const directionX = distance > 0.001 ? awayX / distance : (this.pointerVelocity.x <= 0 ? 1 : -1);
     const directionY = distance > 0.001 ? awayY / distance : (this.pointerVelocity.y <= 0 ? 1 : -1);
-    const targetOffsetX = threat > 0 ? directionX * maxTravelX * Math.min(1, threat * 1.35) : 0;
-    const targetOffsetY = threat > 0 ? directionY * maxTravelY * Math.min(1, threat * 1.05) : 0;
+    const rawTargetX = threat > 0 ? directionX * maxTravelX * Math.min(1, threat * 1.35) : this.bootTerminalFleeOffset.x;
+    const rawTargetY = threat > 0 ? directionY * maxTravelY * Math.min(1, threat * 1.05) : this.bootTerminalFleeOffset.y;
+    // Flee offset may only grow in magnitude — never drift back toward center
+    const targetOffsetX = threat > 0 && Math.abs(rawTargetX) < Math.abs(this.bootTerminalFleeOffset.x)
+      ? this.bootTerminalFleeOffset.x : rawTargetX;
+    const targetOffsetY = threat > 0 && Math.abs(rawTargetY) < Math.abs(this.bootTerminalFleeOffset.y)
+      ? this.bootTerminalFleeOffset.y : rawTargetY;
     const evadeBlend = Math.min(1, dt * (threat > 0 ? 11 : 5));
 
     this.bootTerminalFleeOffset.x = THREE.MathUtils.lerp(this.bootTerminalFleeOffset.x, targetOffsetX, evadeBlend);
