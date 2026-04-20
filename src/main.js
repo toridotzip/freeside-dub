@@ -1,6 +1,7 @@
 import './style.css';
 import { audio } from './audio.js';
 import { events } from './events.js';
+import { FaviconCycler } from './favicon.js';
 import { SpaceStationScene } from './scene.js';
 
 const STREAM_STATUS_URL = 'https://mixnet.dev/status-json.xsl';
@@ -159,6 +160,8 @@ async function init() {
   const metadataContainer = document.getElementById('source-metadata');
   const hint = document.getElementById('source-hint');
   startBtn.disabled = true;
+
+  new FaviconCycler().start();
 
   scene = new SpaceStationScene(canvasContainer);
   setMode(modeLabel, 'Deep space telemetry');
