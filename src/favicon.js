@@ -2,6 +2,8 @@ const FAVICONS = [
   { title: 'Facebook', favicon: '/facebook.ico' },
   { title: 'Feed | LinkedIn', favicon: '/linkedin.ico' },
   { title: 'Myspace', favicon: '/myspace.ico' },
+  { title: 'Hacker News', favicon: '/ycombinator.ico' },
+  { title: 'Reddit - The heart of the internet', favicon: '/reddit.ico' },
 ];
 
 const DEFAULT_CYCLE_MS = 10000;
