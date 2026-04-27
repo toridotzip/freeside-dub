@@ -30,7 +30,7 @@ export const TERMINAL_VARIANTS = {
     imageHeight: 966,
     offsetX: 115,
     offsetY: 135,
-    insetRight: 95,
+    insetRight: 125,
     insetBottom: 150,
     fontFamily: "'SF Mono', 'Menlo', 'Monaco', 'Courier New', monospace",
     textColor: '#f6f6f6',
@@ -161,6 +161,12 @@ export class TerminalWindow {
     this.viewport.append(this.scroller);
 
     if (this.interactive) {
+      const focusOnPointerDown = () => {
+        if (this.visible) {
+          this.focusInput();
+        }
+      };
+
       this.promptRow = document.createElement('label');
       this.promptRow.className = 'system-terminal__prompt';
 
@@ -182,16 +188,8 @@ export class TerminalWindow {
 
       this.input.addEventListener('keydown', (event) => this.onInputKeyDown(event));
       this.input.addEventListener('input', () => this.onInputChange());
-      this.viewport.addEventListener('pointerdown', () => {
-        if (this.visible) {
-          this.focusInput();
-        }
-      });
-      this.scroller.addEventListener('pointerdown', () => {
-        if (this.visible) {
-          this.focusInput();
-        }
-      });
+      this.viewport.addEventListener('pointerdown', focusOnPointerDown);
+      this.scroller.addEventListener('pointerdown', focusOnPointerDown);
     } else if (this.showCursor) {
       this.cursorRow = document.createElement('div');
       this.cursorRow.className = 'system-terminal__line system-terminal__cursor-row';
@@ -257,11 +255,7 @@ export class TerminalWindow {
   open() {
     if (this.destroyed) return;
 
-    this.visible = true;
-    this.closing = false;
-    this.root.classList.remove('hidden', 'closing');
-    this.root.classList.add('visible');
-    this.root.setAttribute('aria-hidden', 'false');
+    this.showWindow();
     this.focusInput();
   }
 
@@ -273,27 +267,16 @@ export class TerminalWindow {
       this.stopScript();
     }
 
-    const finishHide = () => {
-      this.closing = false;
-      this.root.classList.remove('visible', 'closing');
-      this.root.classList.add('hidden');
-      this.root.setAttribute('aria-hidden', 'true');
-    };
-
     if (!animate) {
-      finishHide();
+      this.finishHide();
       return;
     }
 
-    this.closing = true;
-    this.root.classList.add('closing');
-    this.root.classList.remove('visible');
-    const timerId = window.setTimeout(() => {
-      this.timers = this.timers.filter((value) => value !== timerId);
+    this.beginClosing();
+    this.scheduleTimer(() => {
       if (this.destroyed) return;
-      finishHide();
+      this.finishHide();
     }, 220);
-    this.timers.push(timerId);
   }
 
   destroy(options = {}) {
@@ -323,11 +306,9 @@ export class TerminalWindow {
     }
 
     this.hide({ animate: true });
-    const timerId = window.setTimeout(() => {
-      this.timers = this.timers.filter((value) => value !== timerId);
+    this.scheduleTimer(() => {
       this.destroy({ skipHide: true });
     }, 220);
-    this.timers.push(timerId);
   }
 
   clearOutput() {
@@ -358,11 +339,7 @@ export class TerminalWindow {
       lastFrame: '',
     };
 
-    this.root.classList.add('system-terminal--app-active');
-    this.appScreen.textContent = '';
-    this.appScreen.innerHTML = '';
-    this.appScreen.style.color = '';
-    this.appScreen.setAttribute('aria-hidden', 'false');
+    this.activateAppScreen();
     this.scrollToBottom();
     this.open();
     this.focusInput();
@@ -374,11 +351,7 @@ export class TerminalWindow {
 
     const appMode = this.appMode;
     this.appMode = null;
-    this.root.classList.remove('system-terminal--app-active');
-    this.appScreen.textContent = '';
-    this.appScreen.innerHTML = '';
-    this.appScreen.style.color = '';
-    this.appScreen.setAttribute('aria-hidden', 'true');
+    this.deactivateAppScreen();
 
     const response = appMode.onExit?.({
       terminal: this,
@@ -483,8 +456,7 @@ export class TerminalWindow {
 
   stopScript() {
     this.scriptToken += 1;
-    this.timers.forEach((timerId) => window.clearTimeout(timerId));
-    this.timers = [];
+    this.clearTimers();
   }
 
   playScript(parts, options = {}) {
@@ -514,30 +486,83 @@ export class TerminalWindow {
         return;
       }
 
-      const timerId = window.setTimeout(() => {
+      this.scheduleTimer(() => {
         if (this.destroyed || this.scriptToken !== token) return;
         this.appendLine(action.text);
       }, elapsed);
-
-      this.timers.push(timerId);
       elapsed += action.delay ?? lineDelay;
     });
 
     if (autoCloseDelay !== null) {
-      const closeTimerId = window.setTimeout(() => {
+      this.scheduleTimer(() => {
         if (this.destroyed || this.scriptToken !== token) return;
         this.hide({ animate: true, cancelScript: false });
       }, elapsed + autoCloseDelay);
-      this.timers.push(closeTimerId);
 
-      const destroyTimerId = window.setTimeout(() => {
+      this.scheduleTimer(() => {
         if (this.destroyed || this.scriptToken !== token) return;
         if (destroyOnClose) {
           this.destroy();
         }
       }, elapsed + autoCloseDelay + 220);
-      this.timers.push(destroyTimerId);
     }
+  }
+
+  showWindow() {
+    this.visible = true;
+    this.closing = false;
+    this.root.classList.remove('hidden', 'closing');
+    this.root.classList.add('visible');
+    this.root.setAttribute('aria-hidden', 'false');
+  }
+
+  beginClosing() {
+    this.closing = true;
+    this.root.classList.add('closing');
+    this.root.classList.remove('visible');
+  }
+
+  finishHide() {
+    this.closing = false;
+    this.root.classList.remove('visible', 'closing');
+    this.root.classList.add('hidden');
+    this.root.setAttribute('aria-hidden', 'true');
+  }
+
+  resetAppScreen() {
+    this.appScreen.textContent = '';
+    this.appScreen.innerHTML = '';
+    this.appScreen.style.color = '';
+  }
+
+  activateAppScreen() {
+    this.root.classList.add('system-terminal--app-active');
+    this.resetAppScreen();
+    this.appScreen.setAttribute('aria-hidden', 'false');
+  }
+
+  deactivateAppScreen() {
+    this.root.classList.remove('system-terminal--app-active');
+    this.resetAppScreen();
+    this.appScreen.setAttribute('aria-hidden', 'true');
+  }
+
+  clearTimers() {
+    this.timers.forEach((timerId) => window.clearTimeout(timerId));
+    this.timers = [];
+  }
+
+  releaseTimer(timerId) {
+    this.timers = this.timers.filter((value) => value !== timerId);
+  }
+
+  scheduleTimer(callback, delay) {
+    const timerId = window.setTimeout(() => {
+      this.releaseTimer(timerId);
+      callback();
+    }, delay);
+    this.timers.push(timerId);
+    return timerId;
   }
 
   focusInput() {

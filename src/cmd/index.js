@@ -1,0 +1,72 @@
+import analCommand from './anal.js';
+import chshCommand from './chsh.js';
+import clearCommand from './clear.js';
+import cmatrixCommand from './cmatrix.js';
+import echoCommand from './echo.js';
+import eqCommand from './eq.js';
+import exitCommand from './exit.js';
+import freecamCommand from './freecam.js';
+import helpCommand from './help.js';
+import lsCommand from './ls.js';
+import { parseCommandInput } from './parse.js';
+import shCommand from './sh.js';
+
+const COMMAND_DEFINITIONS = [
+  clearCommand,
+  exitCommand,
+  shCommand,
+  lsCommand,
+  echoCommand,
+  eqCommand,
+  analCommand,
+  cmatrixCommand,
+  freecamCommand,
+  helpCommand,
+  chshCommand,
+];
+
+const COMMANDS_BY_NAME = new Map();
+
+COMMAND_DEFINITIONS.forEach((definition) => {
+  [definition.name, ...(definition.aliases ?? [])].forEach((alias) => {
+    COMMANDS_BY_NAME.set(alias, definition);
+  });
+});
+
+export const COMMAND_TERMINAL_COMMANDS = [
+  './cmatrix',
+  './freecam',
+  'anal',
+  'chsh',
+  'clear',
+  'echo',
+  'eq',
+  'exit',
+  'help',
+  'ls',
+  'sh',
+];
+
+export function getCommandCompletions(prefix = '') {
+  const normalized = String(prefix ?? '').toLowerCase();
+  return COMMAND_TERMINAL_COMMANDS.filter((command) => command.startsWith(normalized));
+}
+
+export function runTerminalCommand({ scene, terminal, command }) {
+  const parsed = parseCommandInput(command);
+  const definition = COMMANDS_BY_NAME.get(parsed.name);
+
+  if (!definition) {
+    return [
+      `Unknown command: ${command}`,
+      'Available commands: clear, echo, eq, anal, chsh, help, ls, sh, exit',
+    ];
+  }
+
+  return definition.run({
+    scene,
+    terminal,
+    command,
+    parsed,
+  });
+}
