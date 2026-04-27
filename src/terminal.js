@@ -2,12 +2,14 @@ const TERMINAL_CURSOR_GLYPHS = {
   WINDOWS: '_',
   MACOS: '█',
   LINUX: '█',
+  DUB: '█',
 };
 
 const TERMINAL_PROMPTS = {
   WINDOWS: 'C:\\Windows\\freeside>',
   MACOS: 'root@localhost /Volumes/Freeside % ',
   LINUX: 'root@localhost /opt/freeside# ',
+  DUB: '> ',
 };
 
 export const TERMINAL_VARIANTS = {
@@ -50,11 +52,33 @@ export const TERMINAL_VARIANTS = {
     fontSize: 'clamp(11px, 1vw, 16px)',
     lineHeight: '1.24',
   },
+  DUB: {
+    frameSrc: '',
+    frameVisible: false,
+    imageWidth: 1200,
+    imageHeight: 720,
+    offsetX: 0,
+    offsetY: 0,
+    insetRight: 0,
+    insetBottom: 0,
+    fontFamily: "'Share Tech Mono', 'Courier New', monospace",
+    textColor: '#e7fcff',
+    fontSize: 'clamp(11px, 1vw, 16px)',
+    lineHeight: '1.35',
+    className: 'system-terminal--dub',
+  },
 };
+
+const TERMINAL_VARIANT_CLASS_NAMES = [...new Set(
+  Object.values(TERMINAL_VARIANTS)
+    .map((variant) => variant.className)
+    .filter(Boolean),
+)];
 
 export function normalizeTerminalOs(value) {
   const normalized = String(value || '').toUpperCase();
 
+  if (normalized === 'DUB') return 'DUB';
   if (normalized === 'MACOS') return 'MACOS';
   if (normalized === 'LINUX') return 'LINUX';
 
@@ -144,6 +168,10 @@ export class TerminalWindow {
     this.frame.alt = '';
     this.frame.draggable = false;
 
+    this.handle = document.createElement('div');
+    this.handle.className = 'system-terminal__handle';
+    this.handle.setAttribute('aria-hidden', 'true');
+
     this.viewport = document.createElement('div');
     this.viewport.className = 'system-terminal__viewport';
 
@@ -202,7 +230,7 @@ export class TerminalWindow {
       this.scroller.append(this.cursorRow);
     }
 
-    this.root.append(this.frame, this.viewport);
+    this.root.append(this.frame, this.handle, this.viewport);
     this.container.append(this.root);
 
     this.root.addEventListener('pointerdown', (event) => this.onRootPointerDown(event));
@@ -220,7 +248,20 @@ export class TerminalWindow {
     this.os = normalizeTerminalOs(os);
     const variant = TERMINAL_VARIANTS[this.os];
 
-    this.frame.src = variant.frameSrc;
+    this.root.dataset.terminalVariant = this.os.toLowerCase();
+    this.root.classList.remove(...TERMINAL_VARIANT_CLASS_NAMES);
+    if (variant.className) {
+      this.root.classList.add(variant.className);
+    }
+
+    if (variant.frameVisible === false) {
+      this.frame.hidden = true;
+      this.frame.removeAttribute('src');
+    } else {
+      this.frame.hidden = false;
+      this.frame.src = variant.frameSrc;
+    }
+
     this.root.style.setProperty('--system-terminal-aspect-ratio', `${variant.imageWidth} / ${variant.imageHeight}`);
     this.root.style.setProperty('--system-terminal-content-left', `${(variant.offsetX / variant.imageWidth) * 100}%`);
     this.root.style.setProperty('--system-terminal-content-top', `${(variant.offsetY / variant.imageHeight) * 100}%`);

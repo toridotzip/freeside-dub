@@ -10,12 +10,12 @@ export default {
     }
 
     if (args.length > 1) {
-      return 'Usage: chsh [windows|macos|linux]';
+      return 'Usage: chsh [windows|macos|linux|dub]';
     }
 
     const nextOs = resolveTerminalOsArgument(args[0]);
     if (!nextOs) {
-      return `Unknown shell style: ${args[0]}\nAvailable styles: windows, macos, linux`;
+      return `Unknown shell style: ${args[0]}\nAvailable styles: windows, macos, linux, dub`;
     }
 
     terminal.applyVariant(nextOs);
