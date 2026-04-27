@@ -332,6 +332,8 @@ export class TerminalWindow {
 
     this.root.classList.add('system-terminal--app-active');
     this.appScreen.textContent = '';
+    this.appScreen.innerHTML = '';
+    this.appScreen.style.color = '';
     this.appScreen.setAttribute('aria-hidden', 'false');
     this.scrollToBottom();
     this.open();
@@ -346,6 +348,8 @@ export class TerminalWindow {
     this.appMode = null;
     this.root.classList.remove('system-terminal--app-active');
     this.appScreen.textContent = '';
+    this.appScreen.innerHTML = '';
+    this.appScreen.style.color = '';
     this.appScreen.setAttribute('aria-hidden', 'true');
 
     const response = appMode.onExit?.({
@@ -378,11 +382,30 @@ export class TerminalWindow {
       hint: this.appMode.hint,
       ...frameContext,
     });
-    const text = Array.isArray(frame) ? frame.join('\n') : String(frame ?? '');
+    const normalizedFrame = frame && typeof frame === 'object' && !Array.isArray(frame)
+      ? {
+        text: typeof frame.text === 'string' ? frame.text : '',
+        html: typeof frame.html === 'string' ? frame.html : '',
+        color: typeof frame.color === 'string' ? frame.color : '',
+      }
+      : {
+        text: Array.isArray(frame) ? frame.join('\n') : String(frame ?? ''),
+        html: '',
+        color: '',
+      };
+    const payload = normalizedFrame.html || normalizedFrame.text;
 
-    if (text !== this.appMode.lastFrame) {
-      this.appScreen.textContent = text;
-      this.appMode.lastFrame = text;
+    if (payload !== this.appMode.lastFrame) {
+      if (normalizedFrame.html) {
+        this.appScreen.innerHTML = normalizedFrame.html;
+      } else {
+        this.appScreen.textContent = normalizedFrame.text;
+      }
+      this.appMode.lastFrame = payload;
+    }
+
+    if (this.appScreen.style.color !== normalizedFrame.color) {
+      this.appScreen.style.color = normalizedFrame.color;
     }
 
     this.appMode.lastFrameTime = time;

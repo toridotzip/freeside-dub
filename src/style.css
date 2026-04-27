@@ -435,6 +435,10 @@ button:active {
   padding-bottom: 0.15rem;
 }
 
+.system-terminal__app-line {
+  min-height: calc(var(--system-terminal-line-height, 1.2) * 1em);
+}
+
 .system-terminal__line,
 .system-terminal__prompt {
   color: var(--system-terminal-color, #c9c9c9);
