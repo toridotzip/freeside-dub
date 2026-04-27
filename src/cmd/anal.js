@@ -29,8 +29,8 @@ function buildWaterfallFrame(state, options = {}) {
       if (char === ' ') return ' ';
 
       const hue = Math.round(210 + (index / Math.max(1, width - 1)) * 110 - events.state.fringe * 30 + events.state.sweep * 20) % 360;
-      const saturation = Math.round(60 + level * 18);
-      const lightness = Math.round(30 + level * 20 + (1 - ageFactor) * 14);
+      const saturation = Math.round(60 + level * 20);
+      const lightness = Math.round(30 + level * 32 + (1 - ageFactor) * 16);
       return `<span style="color:hsl(${hue} ${saturation}% ${lightness}%)">${escapeTerminalHtml(char)}</span>`;
     }).join('');
 
@@ -66,7 +66,7 @@ export default {
       frameInterval: 1 / 20,
       state: { rows: [] },
       renderFrame: ({ state }) => buildWaterfallFrame(state, { colorized }),
-      onExit: () => ['Exited anal.', ''],
+      onExit: () => ['nailed it.', ''],
     });
     return null;
   },

@@ -2,6 +2,14 @@ import { events } from './events.js';
 
 //robinAudioEngine v3 @coderobe
 
+const BAND_CONFIGS = [
+  { name: 'bass', minFreq: 20, maxFreq: 110, triggerThreshold: 0.72, minLevel: 0.24, cooldownMax: 0.18, initialPeak: 0.6, hitState: 'bass_hit' },
+  { name: 'lowmid', minFreq: 110, maxFreq: 320, triggerThreshold: 0.68, minLevel: 0.22, cooldownMax: 0.14, initialPeak: 0.55, hitState: 'lowmid_hit' },
+  { name: 'mid', minFreq: 320, maxFreq: 1600, triggerThreshold: 0.64, minLevel: 0.2, cooldownMax: 0.12, initialPeak: 0.5, hitState: 'mid_hit' },
+  { name: 'highmid', minFreq: 1600, maxFreq: 4500, triggerThreshold: 0.6, minLevel: 0.18, cooldownMax: 0.09, initialPeak: 0.45, hitState: 'vocal_hit' },
+  { name: 'high', minFreq: 4500, maxFreq: 14000, triggerThreshold: 0.56, minLevel: 0.16, cooldownMax: 0.07, initialPeak: 0.4, hitState: 'high_hit' },
+];
+
 export class AudioEngine {
   constructor() {
     this.ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -29,13 +37,23 @@ export class AudioEngine {
     this.isPlaying = false;
     this.historySize = 72;
 
-    this.bands = [
-      { name: 'bass', minFreq: 20, maxFreq: 110, triggerThreshold: 0.72, minLevel: 0.24, cooldownTimer: 0, cooldownMax: 0.18, energyHistory: [], fluxHistory: [], envelope: 0, floor: 0, peak: 0.6, initialPeak: 0.6, transient: 0 },
-      { name: 'lowmid', minFreq: 110, maxFreq: 320, triggerThreshold: 0.68, minLevel: 0.22, cooldownTimer: 0, cooldownMax: 0.14, energyHistory: [], fluxHistory: [], envelope: 0, floor: 0, peak: 0.55, initialPeak: 0.55, transient: 0 },
-      { name: 'mid', minFreq: 320, maxFreq: 1600, triggerThreshold: 0.64, minLevel: 0.2, cooldownTimer: 0, cooldownMax: 0.12, energyHistory: [], fluxHistory: [], envelope: 0, floor: 0, peak: 0.5, initialPeak: 0.5, transient: 0 },
-      { name: 'highmid', minFreq: 1600, maxFreq: 4500, triggerThreshold: 0.6, minLevel: 0.18, cooldownTimer: 0, cooldownMax: 0.09, energyHistory: [], fluxHistory: [], envelope: 0, floor: 0, peak: 0.45, initialPeak: 0.45, transient: 0 },
-      { name: 'high', minFreq: 4500, maxFreq: 14000, triggerThreshold: 0.56, minLevel: 0.16, cooldownTimer: 0, cooldownMax: 0.07, energyHistory: [], fluxHistory: [], envelope: 0, floor: 0, peak: 0.4, initialPeak: 0.4, transient: 0 },
-    ];
+    this.bands = BAND_CONFIGS.map(({ name, minFreq, maxFreq, triggerThreshold, minLevel, cooldownMax, initialPeak, hitState }) => ({
+      name,
+      minFreq,
+      maxFreq,
+      triggerThreshold,
+      minLevel,
+      hitState,
+      cooldownTimer: 0,
+      cooldownMax,
+      energyHistory: [],
+      fluxHistory: [],
+      envelope: 0,
+      floor: 0,
+      peak: initialPeak,
+      initialPeak,
+      transient: 0,
+    }));
 
     const sampleRate = this.ctx.sampleRate || 44100;
     this.bands.forEach((band) => {
@@ -72,6 +90,7 @@ export class AudioEngine {
     this.dataArray.fill(0);
     this.previousDataArray.fill(0);
     this.timeDataArray.fill(128);
+    const { state } = events;
 
     this.bands.forEach((band) => {
       band.cooldownTimer = 0;
@@ -83,14 +102,13 @@ export class AudioEngine {
       band.transient = 0;
     });
 
-    events.state.energy = 0;
-    events.state.rms = 0;
-    events.state.centroid = 0;
-    events.state.bands.bass = 0;
-    events.state.bands.lowmid = 0;
-    events.state.bands.mid = 0;
-    events.state.bands.highmid = 0;
-    events.state.bands.high = 0;
+    state.energy = 0;
+    state.rms = 0;
+    state.centroid = 0;
+
+    for (const name in state.bands) {
+      state.bands[name] = 0;
+    }
   }
 
   disconnectBufferSource() {
@@ -374,16 +392,8 @@ export class AudioEngine {
       if (confidence > band.triggerThreshold && normalized > band.minLevel && band.cooldownTimer <= 0) {
         events.emit(`beat_${band.name}`, { confidence, energy, flux, normalized, transient: band.transient });
 
-        if (band.name === 'bass') {
-          events.state.bass_hit = 1.0;
-        } else if (band.name === 'lowmid') {
-          events.state.lowmid_hit = 1.0;
-        } else if (band.name === 'mid') {
-          events.state.mid_hit = 1.0;
-        } else if (band.name === 'highmid') {
-          events.state.vocal_hit = 1.0;
-        } else if (band.name === 'high') {
-          events.state.high_hit = 1.0;
+        if (band.hitState) {
+          events.state[band.hitState] = 1.0;
         }
 
         band.cooldownTimer = band.cooldownMax;
@@ -392,11 +402,7 @@ export class AudioEngine {
       totalEnvelope += band.envelope;
     });
 
-    const bass = this.bands[0];
-    const lowmid = this.bands[1];
-    const mid = this.bands[2];
-    const highmid = this.bands[3];
-    const high = this.bands[4];
+    const [bass, lowmid, mid, highmid, high] = this.bands;
 
     const lowDrive = bass.envelope * 0.72 + lowmid.envelope * 0.28;
     const midDrive = lowmid.envelope * 0.2 + mid.envelope * 0.55 + highmid.envelope * 0.25;

@@ -69,7 +69,7 @@ export default {
       title: 'FREESIDE EQ-12',
       frameInterval: 1 / 20,
       renderFrame: () => buildEqMeterFrame({ colorized }),
-      onExit: () => ['Exited eq.', ''],
+      onExit: () => ['Exited ./eq.', ''],
     });
     return null;
   },

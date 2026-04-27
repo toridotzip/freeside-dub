@@ -15,7 +15,7 @@ function resetMatrixColumn(column, height) {
 
 function buildMatrixFrame(state) {
   const width = 63;
-  const height = 15;
+  const height = 16;
   const intensity = 0.85 + events.state.energy * 0.55 + events.state.shimmer * 0.22;
 
   if (!Array.isArray(state.columns) || state.columns.length !== width) {
@@ -38,7 +38,6 @@ function buildMatrixFrame(state) {
   const lines = [];
   lines.push(escapeTerminalHtml('FREESIDE CMATRIX // NEURAL RAIN'));
   lines.push(escapeTerminalHtml('PRESS ANY KEY TO EXIT'));
-  lines.push('');
 
   for (let row = 0; row < height; row += 1) {
     const cells = state.columns.map((column) => {

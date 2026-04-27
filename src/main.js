@@ -64,12 +64,8 @@ function revealVolumeControl(root) {
   scene.setVolumeControl(root);
 }
 
-function setStatus(statusLabel, text) {
-  statusLabel.innerHTML = `<strong>Status</strong> ${text}`;
-}
-
-function setMode(modeLabel, text) {
-  modeLabel.innerHTML = `<strong>Mode</strong> ${text}`;
+function setLabel(label, title, text) {
+  label.innerHTML = `<strong>${title}</strong> ${text}`;
 }
 
 function parseStatusPayload(payload) {
@@ -169,9 +165,7 @@ function buildMetadataEntries(audioSource) {
 
 function renderMetadata(container, entries) {
   container.classList.remove('metadata-grid--offline');
-  container.replaceChildren();
-
-  entries.forEach(([label, value]) => {
+  container.replaceChildren(...entries.map(([label, value]) => {
     const card = document.createElement('div');
     card.className = 'metadata-card';
 
@@ -182,24 +176,22 @@ function renderMetadata(container, entries) {
     text.textContent = value;
 
     card.append(title, text);
-    container.append(card);
-  });
+    return card;
+  }));
 }
 
 function renderOfflineMetadata(container) {
   container.classList.add('metadata-grid--offline');
-  container.replaceChildren();
 
   const indicator = document.createElement('div');
   indicator.className = 'offline-indicator';
 
   const text = document.createElement('span');
   text.className = 'offline-indicator__text';
-  text.dataset.text = 'OFFLINE';
-  text.textContent = 'OFFLINE';
+  text.dataset.text = text.textContent = 'OFFLINE';
 
   indicator.append(text);
-  container.append(indicator);
+  container.replaceChildren(indicator);
 }
 
 function sanitizeTerminalValue(value, maxLength = 54) {
@@ -297,23 +289,24 @@ function buildRuntimeProfile() {
       ? 'OFF'
       : 'UNSET';
   const brandSummary = brands.length ? brands.join(' | ') : 'UA-CH WITHHELD';
+  const bootLineSpecs = [
+    ['Probe   client shell ......... ', `${browser} / ${operatingSystem}`, 28],
+    ['Probe   render engine ........ ', engine, 28],
+    ['Probe   ua brands ............ ', brandSummary, 42],
+    ['Probe   locale / zone ........ ', `${languages.slice(0, 3).join(', ')} / ${timezone}`, 42],
+    ['Probe   screen lattice ....... ', screenSummary, 42],
+    ['Probe   cores / mem .......... ', resourceSummary, 42],
+    ['Probe   input residue ........ ', inputSummary, 42],
+    ['Probe   do-not-track ......... ', dntValue, 42],
+    ['Probe   ext residue .......... ', extensionSummary, 42],
+  ];
 
   return {
     browser,
     operatingSystem,
     engine,
     extensionSummary,
-    bootLines: [
-      `Probe   client shell ......... ${sanitizeTerminalValue(`${browser} / ${operatingSystem}`, 28)}`,
-      `Probe   render engine ........ ${sanitizeTerminalValue(engine, 28)}`,
-      `Probe   ua brands ............ ${sanitizeTerminalValue(brandSummary, 42)}`,
-      `Probe   locale / zone ........ ${sanitizeTerminalValue(`${languages.slice(0, 3).join(', ')} / ${timezone}`, 42)}`,
-      `Probe   screen lattice ....... ${sanitizeTerminalValue(screenSummary, 42)}`,
-      `Probe   cores / mem .......... ${sanitizeTerminalValue(resourceSummary, 42)}`,
-      `Probe   input residue ........ ${sanitizeTerminalValue(inputSummary, 42)}`,
-      `Probe   do-not-track ......... ${sanitizeTerminalValue(dntValue, 42)}`,
-      `Probe   ext residue .......... ${sanitizeTerminalValue(extensionSummary, 42)}`,
-    ],
+    bootLines: bootLineSpecs.map(([prefix, value, maxLength]) => `${prefix}${sanitizeTerminalValue(value, maxLength)}`),
   };
 }
 
@@ -355,8 +348,8 @@ async function init() {
 
   const runtimeProfile = buildRuntimeProfile();
   scene = new SpaceStationScene(canvasContainer, { bootTerminalOs: runtimeProfile.operatingSystem });
-  setMode(modeLabel, 'Deep space telemetry');
-  setStatus(statusLabel, 'Polling uplink');
+  setLabel(modeLabel, 'Mode', 'Deep space telemetry');
+  setLabel(statusLabel, 'Status', 'Polling uplink');
 
   const audioSource = await resolveAudioSourceConfig();
   subhead.textContent = audioSource.summaryLabel;
@@ -367,17 +360,17 @@ async function init() {
   } else {
     renderMetadata(metadataContainer, buildMetadataEntries(audioSource));
   }
-  setMode(modeLabel, audioSource.modeLabel);
+  setLabel(modeLabel, 'Mode', audioSource.modeLabel);
   scene.setTelemetry(buildTerminalTelemetry(audioSource, runtimeProfile));
 
   audio.load(audioSource).then(() => {
     startBtn.innerText = audioSource.buttonLabel;
-    setStatus(statusLabel, audioSource.readyLabel);
+    setLabel(statusLabel, 'Status', audioSource.readyLabel);
     startBtn.disabled = false;
   }).catch((error) => {
     console.error('Failed to load audio source', error);
     startBtn.innerText = 'LINK ERROR';
-    setStatus(statusLabel, audioSource.failureLabel);
+    setLabel(statusLabel, 'Status', audioSource.failureLabel);
   });
 
   startBtn.addEventListener('click', async () => {
@@ -404,7 +397,7 @@ async function init() {
       console.error('Failed to start audio playback', error);
       startBtn.disabled = false;
       startBtn.innerText = 'RETRY LINK';
-      setStatus(statusLabel, 'PLAYBACK AUTHORIZATION FAILED');
+      setLabel(statusLabel, 'Status', 'PLAYBACK AUTHORIZATION FAILED');
     }
   });
 }

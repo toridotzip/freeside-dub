@@ -1,3 +1,7 @@
+const BAND_NAMES = ['bass', 'lowmid', 'mid', 'highmid', 'high'];
+const LINEAR_DECAYS = [['bass_hit', 4.0], ['lowmid_hit', 4.5], ['mid_hit', 5.0], ['vocal_hit', 6.0], ['high_hit', 8.0], ['pulse', 1.8], ['shimmer', 2.5], ['sweep', 1.1]];
+const EXPONENTIAL_DECAYS = [['distortion', 9], ['fringe', 8]];
+
 export class EventSystem {
   constructor() {
     this.listeners = {};
@@ -16,13 +20,7 @@ export class EventSystem {
       distortion: 0,
       fringe: 0,
       globalSpeed: 1,
-      bands: {
-        bass: 0,
-        lowmid: 0,
-        mid: 0,
-        highmid: 0,
-        high: 0,
-      },
+      bands: Object.fromEntries(BAND_NAMES.map((name) => [name, 0])),
     };
   }
 
@@ -40,21 +38,14 @@ export class EventSystem {
   }
 
   update(dt) {
-    this.state.bass_hit = Math.max(0, this.state.bass_hit - dt * 4.0);
-    this.state.lowmid_hit = Math.max(0, this.state.lowmid_hit - dt * 4.5);
-    this.state.mid_hit = Math.max(0, this.state.mid_hit - dt * 5.0);
-    this.state.vocal_hit = Math.max(0, this.state.vocal_hit - dt * 6.0);
-    this.state.high_hit = Math.max(0, this.state.high_hit - dt * 8.0);
+    for (const [key, rate] of LINEAR_DECAYS) {
+      this.state[key] = Math.max(0, this.state[key] - dt * rate);
+    }
 
-    this.state.pulse = Math.max(0, this.state.pulse - dt * 1.8);
-    this.state.shimmer = Math.max(0, this.state.shimmer - dt * 2.5);
-    this.state.sweep = Math.max(0, this.state.sweep - dt * 1.1);
-
-    this.state.distortion *= Math.pow(0.5, dt * 9);
-    if (this.state.distortion < 0.001) this.state.distortion = 0;
-
-    this.state.fringe *= Math.pow(0.5, dt * 8);
-    if (this.state.fringe < 0.001) this.state.fringe = 0;
+    for (const [key, rate] of EXPONENTIAL_DECAYS) {
+      this.state[key] *= Math.pow(0.5, dt * rate);
+      if (this.state[key] < 0.001) this.state[key] = 0;
+    }
   }
 }
 

@@ -34,13 +34,13 @@ COMMAND_DEFINITIONS.forEach((definition) => {
 });
 
 export const COMMAND_TERMINAL_COMMANDS = [
+  './anal',
   './cmatrix',
+  './eq',
   './freecam',
-  'anal',
   'chsh',
   'clear',
   'echo',
-  'eq',
   'exit',
   'help',
   'ls',
