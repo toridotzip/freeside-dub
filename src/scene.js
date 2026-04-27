@@ -162,8 +162,15 @@ export class SpaceStationScene {
     this.baseModelScale = 1;
     this.stationModel = null;
 
+    this.sharedStationHullMaterial = new THREE.MeshBasicMaterial({
+      color: 0x000000,
+      side: THREE.DoubleSide,
+      toneMapped: false,
+      depthWrite: true,
+      depthTest: true,
+    });
     this.sharedPanelMaterial = new THREE.MeshBasicMaterial({
-      color: 0x010101,
+      color: 0x000000,
       side: THREE.DoubleSide,
       toneMapped: false,
       depthWrite: true,
@@ -180,7 +187,6 @@ export class SpaceStationScene {
       depthTest: true,
     });
     this.sharedInvisibleMaterial.colorWrite = false;
-
     this.wireMaterials = {
       body: new THREE.LineBasicMaterial({ color: 0x5dd7ff, transparent: true, opacity: 0.36, toneMapped: false }),
       panels: new THREE.LineBasicMaterial({ color: 0x7ae7ff, transparent: true, opacity: 0.48, toneMapped: false }),
@@ -788,8 +794,12 @@ export class SpaceStationScene {
 
   buildStationPresentation() {
     this.stationModel.updateMatrixWorld(true);
-
+    const sourceMeshes = [];
     this.stationModel.traverse((child) => {
+      if (child.isMesh && !child.userData.stationOverlay) sourceMeshes.push(child);
+    });
+
+    sourceMeshes.forEach((child) => {
       if (!child.isMesh) return;
 
       const geometry = child.geometry;
@@ -799,9 +809,10 @@ export class SpaceStationScene {
       const scaledSize = new THREE.Box3().setFromObject(child).getSize(new THREE.Vector3());
       const isPanel = this.isPanelMesh(scaledSize);
 
-      const material = isPanel ? this.sharedPanelMaterial : this.sharedInvisibleMaterial;
-      child.material = Array.isArray(child.material) ? child.material.map(() => material) : material;
-      child.renderOrder = isPanel ? 2 : 1;
+      child.material = Array.isArray(child.material)
+        ? child.material.map(() => this.sharedInvisibleMaterial)
+        : this.sharedInvisibleMaterial;
+      child.renderOrder = 0;
 
       const worldBox = this.tempBox.setFromObject(child);
       const worldCenter = worldBox.getCenter(new THREE.Vector3());
@@ -823,8 +834,11 @@ export class SpaceStationScene {
       wire.renderOrder = 4;
       child.add(wire);
 
+      this.createHullLayer(child, isPanel ? this.sharedPanelMaterial : this.sharedStationHullMaterial, isPanel ? 2 : 1);
+
       if (isPanel) {
-        this.panelEntries.push(this.createPanelOverlay(child, localSize));
+        const localCenter = geometry.boundingBox.getCenter(new THREE.Vector3());
+        this.panelEntries.push(this.createPanelOverlay(child, localCenter, localSize));
       } else if (wireMaterial === this.wireMaterials.core) {
         this.coreWires.push(wire);
         this.coreVertices.push(this.createVertexLayer(child, this.vertexMaterials.core));
@@ -851,6 +865,17 @@ export class SpaceStationScene {
     return vertices;
   }
 
+  createHullLayer(mesh, material, renderOrder) {
+    const hull = new THREE.Mesh(mesh.geometry, material);
+    hull.userData.stationOverlay = true;
+    hull.renderOrder = renderOrder;
+    hull.position.copy(mesh.position);
+    hull.quaternion.copy(mesh.quaternion);
+    hull.scale.copy(mesh.scale);
+    mesh.parent?.add(hull);
+    return hull;
+  }
+
   createAttachedEffect(mesh, localSize, region) {
     const size = Math.max(localSize.x, localSize.y, localSize.z);
     if (size < 0.35) return;
@@ -861,19 +886,41 @@ export class SpaceStationScene {
     if (region === 'core') {
       effect = new THREE.Mesh(
         new THREE.IcosahedronGeometry(Math.max(0.04, size * 0.12), 0),
-        new THREE.MeshBasicMaterial({ color: 0xff90e8, transparent: true, opacity: 0.22, toneMapped: false }),
+        new THREE.MeshBasicMaterial({
+          color: 0xff90e8,
+          transparent: true,
+          opacity: 0.22,
+          wireframe: true,
+          depthWrite: false,
+          depthTest: false,
+          toneMapped: false,
+        }),
       );
       this.coreEffects.push(effect);
     } else if (region === 'fore') {
       effect = new THREE.Mesh(
-        new THREE.TorusGeometry(Math.max(0.06, size * 0.18), Math.max(0.01, size * 0.035), 8, 24),
-        new THREE.MeshBasicMaterial({ color: 0x8de5ff, transparent: true, opacity: 0.16, toneMapped: false }),
+        new THREE.DodecahedronGeometry(Math.max(0.06, size * 0.16), 0),
+        new THREE.MeshBasicMaterial({
+          color: 0x8de5ff,
+          transparent: true,
+          opacity: 0.16,
+          depthWrite: false,
+          depthTest: false,
+          toneMapped: false,
+        }),
       );
       this.foreEffects.push(effect);
     } else {
       effect = new THREE.Mesh(
         new THREE.OctahedronGeometry(Math.max(0.05, size * 0.14), 0),
-        new THREE.MeshBasicMaterial({ color: 0xffa160, transparent: true, opacity: 0.2, toneMapped: false }),
+        new THREE.MeshBasicMaterial({
+          color: 0xffa160,
+          transparent: true,
+          opacity: 0.2,
+          depthWrite: false,
+          depthTest: false,
+          toneMapped: false,
+        }),
       );
       this.aftEffects.push(effect);
     }
@@ -883,12 +930,14 @@ export class SpaceStationScene {
     mesh.add(effect);
   }
 
-  createPanelOverlay(mesh, localSize) {
+  createPanelOverlay(mesh, localCenter, localSize) {
     const dims = [localSize.x, localSize.y, localSize.z];
     const thicknessAxis = dims.indexOf(Math.min(...dims));
     const planeAxes = [0, 1, 2].filter((axis) => axis !== thicknessAxis);
     const width = dims[planeAxes[0]] * 1.02;
     const height = dims[planeAxes[1]] * 1.02;
+    const faceInset = Math.max(0.008, dims[thicknessAxis] * 0.18);
+    const faceOffset = dims[thicknessAxis] * 0.5 + faceInset;
     const glowMaterial = new THREE.MeshBasicMaterial({
       color: 0x84ebff,
       transparent: true,
@@ -900,22 +949,19 @@ export class SpaceStationScene {
     });
 
     const plane = new THREE.Mesh(new THREE.PlaneGeometry(width, height), glowMaterial);
-    const offset = Math.max(0.015, dims[thicknessAxis] * 0.9);
 
     if (thicknessAxis === 0) plane.rotation.y = Math.PI / 2;
     if (thicknessAxis === 1) plane.rotation.x = -Math.PI / 2;
 
-    plane.position.set(
-      thicknessAxis === 0 ? offset : 0,
-      thicknessAxis === 1 ? offset : 0,
-      thicknessAxis === 2 ? offset : 0,
-    );
+    plane.position.copy(localCenter);
+    plane.position.setComponent(thicknessAxis, plane.position.getComponent(thicknessAxis) + faceOffset);
     plane.renderOrder = 5;
     mesh.add(plane);
 
     const planeBack = plane.clone();
     planeBack.material = glowMaterial.clone();
-    planeBack.position.multiplyScalar(-1);
+    planeBack.position.copy(localCenter);
+    planeBack.position.setComponent(thicknessAxis, planeBack.position.getComponent(thicknessAxis) - faceOffset);
     planeBack.renderOrder = 5;
     mesh.add(planeBack);
 
