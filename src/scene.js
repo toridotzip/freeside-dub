@@ -670,8 +670,8 @@ export class SpaceStationScene {
 
     terminal.root.classList.add('system-terminal--boot');
     terminal.playScript(this.buildBootSequence(bootTerminalOs), {
-      lineDelay: 100,
-      autoCloseDelay: 2000,
+      lineDelay: 80,
+      autoCloseDelay: 1000,
       destroyOnClose: true,
     });
   }

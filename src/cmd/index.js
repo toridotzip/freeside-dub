@@ -59,7 +59,7 @@ export function runTerminalCommand({ scene, terminal, command }) {
   if (!definition) {
     return [
       `Unknown command: ${command}`,
-      'Available commands: clear, echo, eq, anal, chsh, help, ls, sh, exit',
+      'type `help` for help',
     ];
   }
 
