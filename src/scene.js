@@ -132,15 +132,23 @@ export class SpaceStationScene {
     this.cameraOffset = new THREE.Vector3();
 
     this.renderer = new THREE.WebGLRenderer({
-      antialias: true,
+      antialias: false,
       alpha: false,
       powerPreference: 'low-power',
+      stencil: false,
     });
     this.pixelRatio = Math.min(window.devicePixelRatio, 0.5);
     this.bloomDownscaleFactor = 0.75;
     this.maxFps = 60;
     this.frameInterval = 1 / this.maxFps;
     this.accumulatedDt = 0;
+    this.domUpdateInterval = 1 / 30;
+    this.domAccumulatedDt = 0;
+    this.pointerState = {
+      active: false,
+      position: this.pointerPosition,
+      velocity: this.pointerVelocity,
+    };
     this.renderer.setPixelRatio(this.pixelRatio);
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -160,7 +168,7 @@ export class SpaceStationScene {
 
     this.bloomPass = new UnrealBloomPass(
       new THREE.Vector2(window.innerWidth * this.bloomDownscaleFactor, window.innerHeight * this.bloomDownscaleFactor),
-      0.82,
+      1.24,
       0.35,
       0.52,
     );
@@ -758,6 +766,10 @@ export class SpaceStationScene {
     this.stationBounds.copy(size).multiplyScalar(scale);
     this.baseModelScale = scale;
     this.stationLength = Math.max(this.stationBounds.x, this.stationBounds.y, this.stationBounds.z);
+    this.detailWireThreshold = Math.max(0.14, this.stationLength * 0.012);
+    this.detailVertexThreshold = Math.max(0.2, this.stationLength * 0.016);
+    this.panelGlowThreshold = Math.max(0.24, this.stationLength * 0.02);
+    this.regionEffectThreshold = Math.max(0.42, this.stationLength * 0.03);
     const sortedBounds = [this.stationBounds.x, this.stationBounds.y, this.stationBounds.z].sort((a, b) => b - a);
     this.stationRadius = Math.max(2.8, (sortedBounds[1] + sortedBounds[2]) * 0.3 + 0.8);
     this.stationAxis.copy(this.computeBodyAxis(model));
@@ -841,6 +853,11 @@ export class SpaceStationScene {
 
       const localSize = geometry.boundingBox.getSize(new THREE.Vector3());
       const scaledSize = new THREE.Box3().setFromObject(child).getSize(new THREE.Vector3());
+      const scaledMaxDim = Math.max(scaledSize.x, scaledSize.y, scaledSize.z);
+      const buildWireOverlay = scaledMaxDim >= this.detailWireThreshold;
+      const buildVertexOverlay = scaledMaxDim >= this.detailVertexThreshold;
+      const buildPanelGlow = scaledMaxDim >= this.panelGlowThreshold;
+      const buildRegionEffect = scaledMaxDim >= this.regionEffectThreshold;
       const isPanel = this.isPanelMesh(scaledSize);
 
       child.material = Array.isArray(child.material)
@@ -864,30 +881,35 @@ export class SpaceStationScene {
         wireMaterial = this.wireMaterials.aft;
       }
 
-      const wire = new THREE.LineSegments(new THREE.WireframeGeometry(geometry), wireMaterial);
-      wire.renderOrder = 4;
-      child.add(wire);
+      let wire = null;
+      if (buildWireOverlay) {
+        wire = new THREE.LineSegments(new THREE.WireframeGeometry(geometry), wireMaterial);
+        wire.renderOrder = 4;
+        child.add(wire);
+      }
 
       this.createHullLayer(child, isPanel ? this.sharedPanelMaterial : this.sharedStationHullMaterial, isPanel ? 2 : 1);
 
       if (isPanel) {
         const localCenter = geometry.boundingBox.getCenter(new THREE.Vector3());
-        this.panelEntries.push(this.createPanelOverlay(child, localCenter, localSize));
+        if (buildPanelGlow) {
+          this.panelEntries.push(this.createPanelOverlay(child, localCenter, localSize));
+        }
       } else if (wireMaterial === this.wireMaterials.core) {
-        this.coreWires.push(wire);
-        this.coreVertices.push(this.createVertexLayer(child, this.vertexMaterials.core));
-        this.createAttachedEffect(child, localSize, 'core');
+        if (wire) this.coreWires.push(wire);
+        if (buildVertexOverlay) this.coreVertices.push(this.createVertexLayer(child, this.vertexMaterials.core));
+        if (buildRegionEffect) this.createAttachedEffect(child, localSize, 'core');
       } else if (wireMaterial === this.wireMaterials.fore) {
-        this.foreWires.push(wire);
-        this.foreVertices.push(this.createVertexLayer(child, this.vertexMaterials.fore));
-        this.createRegionPulseEffect(child, localSize, 'fore');
+        if (wire) this.foreWires.push(wire);
+        if (buildVertexOverlay) this.foreVertices.push(this.createVertexLayer(child, this.vertexMaterials.fore));
+        if (buildRegionEffect) this.createRegionPulseEffect(child, localSize, 'fore');
       } else if (wireMaterial === this.wireMaterials.aft) {
-        this.aftWires.push(wire);
-        this.aftVertices.push(this.createVertexLayer(child, this.vertexMaterials.aft));
-        this.createRegionPulseEffect(child, localSize, 'aft');
+        if (wire) this.aftWires.push(wire);
+        if (buildVertexOverlay) this.aftVertices.push(this.createVertexLayer(child, this.vertexMaterials.aft));
+        if (buildRegionEffect) this.createRegionPulseEffect(child, localSize, 'aft');
       } else {
-        this.bodyWires.push(wire);
-        this.bodyVertices.push(this.createVertexLayer(child, this.vertexMaterials.body));
+        if (wire) this.bodyWires.push(wire);
+        if (buildVertexOverlay) this.bodyVertices.push(this.createVertexLayer(child, this.vertexMaterials.body));
       }
     });
   }
@@ -1325,7 +1347,7 @@ export class SpaceStationScene {
   }
 
   updateTelemetryHud(time) {
-    if (!this.telemetryRoot) return;
+    if (!this.telemetryRoot || !this.telemetryRoot.classList.contains('visible')) return;
 
     const xShift = (Math.sin(time * 2.4) * events.state.fringe * 10).toFixed(2);
     const yShift = (Math.cos(time * 1.7) * events.state.distortion * 6).toFixed(2);
@@ -1339,7 +1361,7 @@ export class SpaceStationScene {
   }
 
   updateVolumeControl(time) {
-    if (!this.volumeControlRoot) return;
+    if (!this.volumeControlRoot || this.volumeControlRoot.classList.contains('hidden')) return;
 
     const xShift = (Math.sin(time * 2.4) * events.state.fringe * 10).toFixed(2);
     const yShift = (Math.cos(time * 1.7) * events.state.distortion * 6).toFixed(2);
@@ -1352,20 +1374,12 @@ export class SpaceStationScene {
   }
 
   updateTerminals(time, dt) {
-    const pointerState = {
-      active: this.pointerActive,
-      position: {
-        x: this.pointerPosition.x,
-        y: this.pointerPosition.y,
-      },
-      velocity: {
-        x: this.pointerVelocity.x,
-        y: this.pointerVelocity.y,
-      },
-    };
+    if (this.terminals.length === 0) return;
+
+    this.pointerState.active = this.pointerActive;
 
     this.terminals.forEach((terminal) => {
-      terminal.update(time, dt, pointerState, events.state, { audio });
+      terminal.update(time, dt, this.pointerState, events.state, { audio });
     });
   }
 
@@ -1382,9 +1396,15 @@ export class SpaceStationScene {
     this.updateStationMotion(time, frameDt);
     this.updateStationStyling(time);
     this.updatePostProcessing(time);
-    this.updateTelemetryHud(time);
-    this.updateVolumeControl(time);
-    this.updateTerminals(time, frameDt);
+    this.domAccumulatedDt += frameDt;
+    if (this.domAccumulatedDt >= this.domUpdateInterval) {
+      const domDt = this.domAccumulatedDt;
+      this.domAccumulatedDt %= this.domUpdateInterval;
+
+      this.updateTelemetryHud(time);
+      this.updateVolumeControl(time);
+      this.updateTerminals(time, domDt);
+    }
 
     this.composer.render();
   }

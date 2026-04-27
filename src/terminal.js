@@ -156,6 +156,14 @@ export class TerminalWindow {
     this.historyIndex = -1;
     this.historyDraft = '';
     this.suppressInputTracking = false;
+    this.styleCache = {
+      baseX: '',
+      baseY: '',
+      shiftX: '',
+      shiftY: '',
+      opacity: '',
+      glow: '',
+    };
 
     this.root = document.createElement('div');
     this.root.className = 'system-terminal hidden';
@@ -284,6 +292,12 @@ export class TerminalWindow {
 
   setZIndex(zIndex) {
     this.root.style.zIndex = String(zIndex);
+  }
+
+  setStyleProperty(name, value, cacheKey) {
+    if (this.styleCache[cacheKey] === value) return;
+    this.styleCache[cacheKey] = value;
+    this.root.style.setProperty(name, value);
   }
 
   refreshInteractivity() {
@@ -845,45 +859,48 @@ export class TerminalWindow {
     const distortion = Number(effectState?.distortion) || 0;
 
     if (!this.draggable) {
-      const rect = this.root.getBoundingClientRect();
-      const centerX = rect.left + rect.width * 0.5;
-      const centerY = rect.top + rect.height * 0.5;
-      const awayX = centerX - pointerState.position.x;
-      const awayY = centerY - pointerState.position.y;
-      const distance = Math.hypot(awayX, awayY);
-      const speed = Math.hypot(pointerState.velocity.x, pointerState.velocity.y);
-      const radius = Math.max(rect.width, rect.height) * 0.78;
-      const isPointerInside = pointerState.position.x >= rect.left
-        && pointerState.position.x <= rect.right
-        && pointerState.position.y >= rect.top
-        && pointerState.position.y <= rect.bottom;
-      const proximity = clamp(1 - distance / radius, 0, 1);
-      const approach = speed > 0.001 && distance > 0.001
-        ? clamp((pointerState.velocity.x * awayX + pointerState.velocity.y * awayY) / (speed * distance), 0, 1)
-        : 0;
-      const threat = pointerState.active
-        ? isPointerInside
+      if (pointerState.active) {
+        const rect = this.root.getBoundingClientRect();
+        const centerX = rect.left + rect.width * 0.5;
+        const centerY = rect.top + rect.height * 0.5;
+        const awayX = centerX - pointerState.position.x;
+        const awayY = centerY - pointerState.position.y;
+        const distance = Math.hypot(awayX, awayY);
+        const speed = Math.hypot(pointerState.velocity.x, pointerState.velocity.y);
+        const radius = Math.max(rect.width, rect.height) * 0.78;
+        const isPointerInside = pointerState.position.x >= rect.left
+          && pointerState.position.x <= rect.right
+          && pointerState.position.y >= rect.top
+          && pointerState.position.y <= rect.bottom;
+        const proximity = clamp(1 - distance / radius, 0, 1);
+        const approach = speed > 0.001 && distance > 0.001
+          ? clamp((pointerState.velocity.x * awayX + pointerState.velocity.y * awayY) / (speed * distance), 0, 1)
+          : 0;
+        const threat = isPointerInside
           ? 1
           : proximity > 0 && (approach > 0.12 || distance < Math.min(rect.width, rect.height) * 0.32)
             ? proximity * (0.55 + approach * 0.75)
-            : 0
-        : 0;
-      const maxTravelX = Math.max(0, window.innerWidth * 0.5 - rect.width * 0.58 - 28);
-      const maxTravelY = Math.max(0, window.innerHeight * 0.5 - rect.height * 0.58 - 28);
-      const directionX = distance > 0.001 ? awayX / distance : (pointerState.velocity.x <= 0 ? 1 : -1);
-      const directionY = distance > 0.001 ? awayY / distance : (pointerState.velocity.y <= 0 ? 1 : -1);
-      const rawTargetX = threat > 0 ? directionX * maxTravelX * Math.min(1, threat * 1.35) : this.fleeOffsetX;
-      const rawTargetY = threat > 0 ? directionY * maxTravelY * Math.min(1, threat * 1.05) : this.fleeOffsetY;
-      const targetOffsetX = threat > 0 && Math.abs(rawTargetX) < Math.abs(this.fleeOffsetX)
-        ? this.fleeOffsetX
-        : rawTargetX;
-      const targetOffsetY = threat > 0 && Math.abs(rawTargetY) < Math.abs(this.fleeOffsetY)
-        ? this.fleeOffsetY
-        : rawTargetY;
-      const evadeBlend = Math.min(1, dt * (threat > 0 ? 11 : 5));
+            : 0;
+        const maxTravelX = Math.max(0, window.innerWidth * 0.5 - rect.width * 0.58 - 28);
+        const maxTravelY = Math.max(0, window.innerHeight * 0.5 - rect.height * 0.58 - 28);
+        const directionX = distance > 0.001 ? awayX / distance : (pointerState.velocity.x <= 0 ? 1 : -1);
+        const directionY = distance > 0.001 ? awayY / distance : (pointerState.velocity.y <= 0 ? 1 : -1);
+        const rawTargetX = threat > 0 ? directionX * maxTravelX * Math.min(1, threat * 1.35) : this.fleeOffsetX;
+        const rawTargetY = threat > 0 ? directionY * maxTravelY * Math.min(1, threat * 1.05) : this.fleeOffsetY;
+        const targetOffsetX = threat > 0 && Math.abs(rawTargetX) < Math.abs(this.fleeOffsetX)
+          ? this.fleeOffsetX
+          : rawTargetX;
+        const targetOffsetY = threat > 0 && Math.abs(rawTargetY) < Math.abs(this.fleeOffsetY)
+          ? this.fleeOffsetY
+          : rawTargetY;
+        const evadeBlend = Math.min(1, dt * (threat > 0 ? 11 : 5));
 
-      this.fleeOffsetX = lerp(this.fleeOffsetX, targetOffsetX, evadeBlend);
-      this.fleeOffsetY = lerp(this.fleeOffsetY, targetOffsetY, evadeBlend);
+        this.fleeOffsetX = lerp(this.fleeOffsetX, targetOffsetX, evadeBlend);
+        this.fleeOffsetY = lerp(this.fleeOffsetY, targetOffsetY, evadeBlend);
+      } else {
+        this.fleeOffsetX = lerp(this.fleeOffsetX, 0, Math.min(1, dt * 5));
+        this.fleeOffsetY = lerp(this.fleeOffsetY, 0, Math.min(1, dt * 5));
+      }
     } else if (!this.dragState) {
       this.fleeOffsetX = lerp(this.fleeOffsetX, 0, Math.min(1, dt * 6));
       this.fleeOffsetY = lerp(this.fleeOffsetY, 0, Math.min(1, dt * 6));
@@ -892,12 +909,12 @@ export class TerminalWindow {
     const shiftX = Math.sin(time * 18) * (1.2 + fringe * 6) * wobbleScale + this.fleeOffsetX;
     const shiftY = Math.cos(time * 13) * (0.8 + distortion * 4) * wobbleScale + this.fleeOffsetY;
 
-    this.root.style.setProperty('--system-terminal-base-x', `${this.baseOffsetX + this.manualOffsetX}px`);
-    this.root.style.setProperty('--system-terminal-base-y', `${this.baseOffsetY + this.manualOffsetY}px`);
-    this.root.style.setProperty('--system-terminal-shift-x', `${shiftX.toFixed(2)}px`);
-    this.root.style.setProperty('--system-terminal-shift-y', `${shiftY.toFixed(2)}px`);
-    this.root.style.setProperty('--system-terminal-opacity', `${0.96 - distortion * 0.08}`);
-    this.root.style.setProperty('--system-terminal-glow', `${0.08 + fringe * 0.12}`);
+    this.setStyleProperty('--system-terminal-base-x', `${this.baseOffsetX + this.manualOffsetX}px`, 'baseX');
+    this.setStyleProperty('--system-terminal-base-y', `${this.baseOffsetY + this.manualOffsetY}px`, 'baseY');
+    this.setStyleProperty('--system-terminal-shift-x', `${shiftX.toFixed(2)}px`, 'shiftX');
+    this.setStyleProperty('--system-terminal-shift-y', `${shiftY.toFixed(2)}px`, 'shiftY');
+    this.setStyleProperty('--system-terminal-opacity', `${0.96 - distortion * 0.08}`, 'opacity');
+    this.setStyleProperty('--system-terminal-glow', `${0.08 + fringe * 0.12}`, 'glow');
 
     if (this.appMode) {
       this.renderAppFrame(time, dt, frameContext);
