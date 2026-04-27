@@ -21,6 +21,36 @@ const CYAN = new THREE.Color(0x7ae7ff);
 const BLUE = new THREE.Color(0x6fa0ff);
 const PINK = new THREE.Color(0xff7ee1);
 const ORANGE = new THREE.Color(0xffa15c);
+const regionPulseShader = {
+  vertexShader: `
+    varying vec3 vLocalPosition;
+
+    void main() {
+      vLocalPosition = position;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
+  fragmentShader: `
+    uniform vec3 uColor;
+    uniform float uOpacity;
+    uniform float uRadius;
+    uniform float uPhase;
+    uniform vec3 uHalfSize;
+    uniform vec3 uFillAxis;
+    uniform vec3 uStripeAxis;
+    varying vec3 vLocalPosition;
+
+    void main() {
+      vec3 normalized = vLocalPosition / max(uHalfSize, vec3(0.001));
+      float fillDistance = abs(dot(normalized, uFillAxis));
+      float stripeDistance = dot(normalized, uStripeAxis);
+      float pulse = 1.0 - smoothstep(uRadius, uRadius + 0.22, fillDistance);
+      float stripe = 0.45 + 0.55 * sin((stripeDistance * 6.0 + uPhase) * 6.28318530718);
+      float alpha = pulse * stripe * uOpacity;
+      gl_FragColor = vec4(uColor, alpha);
+    }
+  `,
+};
 
 const BOOT_TERMINAL_KEYMAP = {
   w: 'WINDOWS',
@@ -102,7 +132,7 @@ export class SpaceStationScene {
     this.cameraOffset = new THREE.Vector3();
 
     this.renderer = new THREE.WebGLRenderer({
-      antialias: false,
+      antialias: true,
       alpha: false,
       powerPreference: 'low-power',
     });
@@ -130,8 +160,8 @@ export class SpaceStationScene {
 
     this.bloomPass = new UnrealBloomPass(
       new THREE.Vector2(window.innerWidth * this.bloomDownscaleFactor, window.innerHeight * this.bloomDownscaleFactor),
-      0.62,
-      0.55,
+      0.82,
+      0.35,
       0.52,
     );
     this.bloomPass.threshold = 0.08;
@@ -202,6 +232,8 @@ export class SpaceStationScene {
     };
 
     this.panelEntries = [];
+    this.forePanelBars = [];
+    this.aftPanelBars = [];
     this.bodyWires = [];
     this.coreWires = [];
     this.foreWires = [];
@@ -696,6 +728,8 @@ export class SpaceStationScene {
   setStationModel(model) {
     this.stationModelGroup.clear();
     this.panelEntries = [];
+    this.forePanelBars = [];
+    this.aftPanelBars = [];
     this.bodyWires = [];
     this.coreWires = [];
     this.foreWires = [];
@@ -846,11 +880,11 @@ export class SpaceStationScene {
       } else if (wireMaterial === this.wireMaterials.fore) {
         this.foreWires.push(wire);
         this.foreVertices.push(this.createVertexLayer(child, this.vertexMaterials.fore));
-        this.createAttachedEffect(child, localSize, 'fore');
+        this.createRegionPulseEffect(child, localSize, 'fore');
       } else if (wireMaterial === this.wireMaterials.aft) {
         this.aftWires.push(wire);
         this.aftVertices.push(this.createVertexLayer(child, this.vertexMaterials.aft));
-        this.createAttachedEffect(child, localSize, 'aft');
+        this.createRegionPulseEffect(child, localSize, 'aft');
       } else {
         this.bodyWires.push(wire);
         this.bodyVertices.push(this.createVertexLayer(child, this.vertexMaterials.body));
@@ -892,37 +926,13 @@ export class SpaceStationScene {
           opacity: 0.22,
           wireframe: true,
           depthWrite: false,
-          depthTest: false,
+          depthTest: true,
           toneMapped: false,
         }),
       );
       this.coreEffects.push(effect);
-    } else if (region === 'fore') {
-      effect = new THREE.Mesh(
-        new THREE.DodecahedronGeometry(Math.max(0.06, size * 0.16), 0),
-        new THREE.MeshBasicMaterial({
-          color: 0x8de5ff,
-          transparent: true,
-          opacity: 0.16,
-          depthWrite: false,
-          depthTest: false,
-          toneMapped: false,
-        }),
-      );
-      this.foreEffects.push(effect);
     } else {
-      effect = new THREE.Mesh(
-        new THREE.OctahedronGeometry(Math.max(0.05, size * 0.14), 0),
-        new THREE.MeshBasicMaterial({
-          color: 0xffa160,
-          transparent: true,
-          opacity: 0.2,
-          depthWrite: false,
-          depthTest: false,
-          toneMapped: false,
-        }),
-      );
-      this.aftEffects.push(effect);
+      return;
     }
 
     effect.position.copy(center);
@@ -970,6 +980,50 @@ export class SpaceStationScene {
       frontMaterial: glowMaterial,
       backMaterial: planeBack.material,
     };
+  }
+
+  createRegionPulseEffect(mesh, localSize, region) {
+    const dims = [localSize.x, localSize.y, localSize.z];
+    const axisOrder = [0, 1, 2].sort((a, b) => dims[b] - dims[a]);
+    const fillAxis = new THREE.Vector3();
+    fillAxis.setComponent(axisOrder[0], 1);
+    const stripeAxis = new THREE.Vector3();
+    stripeAxis.setComponent(axisOrder[1] ?? axisOrder[0], 1);
+    const halfSize = new THREE.Vector3(
+      Math.max(localSize.x * 0.5, 0.001),
+      Math.max(localSize.y * 0.5, 0.001),
+      Math.max(localSize.z * 0.5, 0.001),
+    );
+    const baseColor = new THREE.Color(region === 'fore' ? 0x72b8ff : 0xffa15c);
+    const material = new THREE.ShaderMaterial({
+      uniforms: {
+        uColor: { value: baseColor.clone() },
+        uOpacity: { value: 0.0 },
+        uRadius: { value: 0.3 },
+        uPhase: { value: 0.0 },
+        uHalfSize: { value: halfSize },
+        uFillAxis: { value: fillAxis },
+        uStripeAxis: { value: stripeAxis },
+      },
+      vertexShader: regionPulseShader.vertexShader,
+      fragmentShader: regionPulseShader.fragmentShader,
+      transparent: true,
+      depthTest: false,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+      toneMapped: false,
+    });
+    const effect = new THREE.Mesh(mesh.geometry, material);
+    effect.renderOrder = 8;
+    mesh.add(effect);
+
+    const target = region === 'fore' ? this.foreEffects : this.aftEffects;
+    target.push({
+      mesh: effect,
+      material,
+      baseColor,
+    });
   }
 
   updateAxisBasis() {
@@ -1040,7 +1094,7 @@ export class SpaceStationScene {
   onKeyDown(event) {
     const key = event.key?.toLowerCase();
 
-    if (this.freecam.active) {
+    if (this.freecam.active && key !== 'c') {
       if (event.altKey || event.ctrlKey || event.metaKey) return;
 
       if (event.key === 'Escape') {
@@ -1238,20 +1292,17 @@ export class SpaceStationScene {
     });
 
     this.foreEffects.forEach((effect, index) => {
-      const scale = 1 + shimmer * 0.32 + centroid * 0.18;
-      effect.scale.setScalar(scale);
-      effect.material.opacity = 0.08 + shimmer * 0.24 + centroid * 0.12;
-      effect.material.color.copy(CYAN).lerp(BLUE, centroid * 0.24);
-      effect.rotation.z = -time * (0.8 + index * 0.03);
+      effect.material.uniforms.uRadius.value = THREE.MathUtils.clamp(0.16 + centroid * 0.34 + shimmer * 0.08, 0.12, 0.72);
+      effect.material.uniforms.uOpacity.value = 0.18 + shimmer * 0.2 + centroid * 0.24;
+      effect.material.uniforms.uPhase.value = time * 0.65 + index * 0.18;
+      effect.material.uniforms.uColor.value.copy(effect.baseColor).lerp(CYAN, shimmer * 0.16);
     });
 
     this.aftEffects.forEach((effect, index) => {
-      const scale = 1 + bassHit * 0.55 + pulse * 0.16;
-      effect.scale.setScalar(scale);
-      effect.material.opacity = 0.1 + bassHit * 0.3 + pulse * 0.12;
-      effect.material.color.copy(ORANGE).lerp(PINK, pulse * 0.16);
-      effect.rotation.x = time * (0.65 + index * 0.02);
-      effect.rotation.z = time * (0.45 + index * 0.03);
+      effect.material.uniforms.uRadius.value = THREE.MathUtils.clamp(0.14 + bassHit * 0.3 + pulse * 0.14, 0.12, 0.68);
+      effect.material.uniforms.uOpacity.value = 0.2 + bassHit * 0.22 + pulse * 0.16;
+      effect.material.uniforms.uPhase.value = time * 0.52 + index * 0.16;
+      effect.material.uniforms.uColor.value.copy(effect.baseColor).lerp(PINK, pulse * 0.12);
     });
 
     this.starfield.rotation.y = time * 0.008;
