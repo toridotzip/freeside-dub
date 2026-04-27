@@ -10,6 +10,7 @@ export class AudioEngine {
     this.analyser.smoothingTimeConstant = 0.18;
 
     this.output = this.ctx.createGain();
+    this.output.gain.value = 1.0;
     this.analyser.connect(this.output);
     this.output.connect(this.ctx.destination);
 
@@ -237,6 +238,15 @@ export class AudioEngine {
     if (playPromise) {
       await playPromise;
     }
+  }
+
+  setVolume(volume) {
+    const clamped = Math.max(0, Math.min(1, volume));
+    this.output.gain.setTargetAtTime(clamped, this.ctx.currentTime, 0.015);
+  }
+
+  getVolume() {
+    return this.output.gain.value;
   }
 
   pushHistory(history, value) {

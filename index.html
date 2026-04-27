@@ -29,6 +29,11 @@
   </div>
 
   <div id="canvas-container"></div>
+  <div id="volume-control" class="volume-control hidden" aria-hidden="true">
+    <span class="volume-control__label">GAIN</span>
+    <input id="volume-slider" type="range" min="0" max="100" step="1" value="80" aria-label="Output volume" />
+    <span id="volume-value" class="volume-control__value">80</span>
+  </div>
   <script type="module" src="/src/main.js"></script>
 </body>
 

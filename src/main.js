@@ -7,10 +7,61 @@ import { SpaceStationScene } from './scene.js';
 const STREAM_STATUS_URL = 'https://mixnet.dev/status-json.xsl';
 const STREAM_URL = 'https://mixnet.dev/stream';
 const FALLBACK_AUDIO_URL = '/audio.ogg';
+const VOLUME_STORAGE_KEY = 'freeside-dub:volume';
+const DEFAULT_VOLUME = 0.8;
 
 let scene;
 let lastTime = performance.now();
 let hasStarted = false;
+
+function loadStoredVolume() {
+  try {
+    const raw = localStorage.getItem(VOLUME_STORAGE_KEY);
+    if (raw === null) return DEFAULT_VOLUME;
+    const parsed = Number.parseFloat(raw);
+    if (!Number.isFinite(parsed)) return DEFAULT_VOLUME;
+    return Math.max(0, Math.min(1, parsed));
+  } catch (error) {
+    console.error('Failed to read stored volume', error);
+    return DEFAULT_VOLUME;
+  }
+}
+
+function persistVolume(volume) {
+  try {
+    localStorage.setItem(VOLUME_STORAGE_KEY, String(volume));
+  } catch (error) {
+    console.error('Failed to persist volume', error);
+  }
+}
+
+function setupVolumeControl() {
+  const root = document.getElementById('volume-control');
+  const slider = document.getElementById('volume-slider');
+  const valueLabel = document.getElementById('volume-value');
+
+  const initialVolume = loadStoredVolume();
+  audio.setVolume(initialVolume);
+
+  const initialPercent = Math.round(initialVolume * 100);
+  slider.value = String(initialPercent);
+  valueLabel.textContent = String(initialPercent);
+
+  slider.addEventListener('input', () => {
+    const percent = Number.parseInt(slider.value, 10);
+    const volume = Number.isFinite(percent) ? percent / 100 : DEFAULT_VOLUME;
+    audio.setVolume(volume);
+    valueLabel.textContent = String(percent);
+    persistVolume(volume);
+  });
+
+  return root;
+}
+
+function revealVolumeControl(root) {
+  root.classList.remove('hidden');
+  root.setAttribute('aria-hidden', 'false');
+}
 
 function setStatus(statusLabel, text) {
   statusLabel.innerHTML = `<strong>Status</strong> ${text}`;
@@ -281,6 +332,8 @@ async function init() {
 
   new FaviconCycler().start();
 
+  const volumeControl = setupVolumeControl();
+
   const runtimeProfile = buildRuntimeProfile();
   scene = new SpaceStationScene(canvasContainer, { bootTerminalOs: runtimeProfile.operatingSystem });
   setMode(modeLabel, 'Deep space telemetry');
@@ -314,6 +367,7 @@ async function init() {
       hasStarted = true;
       lastTime = performance.now();
       uiOverlay.classList.add('hidden');
+      revealVolumeControl(volumeControl);
       scene.setTelemetryVisible(true);
       scene.enableBootTerminalHotkeys();
       setTimeout(() => scene.playStartupTerminal(), 1000);
