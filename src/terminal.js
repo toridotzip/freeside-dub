@@ -125,8 +125,13 @@ export class TerminalWindow {
     this.onFocus = typeof options.onFocus === 'function' ? options.onFocus : null;
     this.onDestroy = typeof options.onDestroy === 'function' ? options.onDestroy : null;
     this.onCommand = typeof options.onCommand === 'function' ? options.onCommand : null;
+    this.getCompletions = typeof options.getCompletions === 'function' ? options.getCompletions : null;
     this.promptText = options.promptText || TERMINAL_PROMPTS[this.os];
     this.appMode = null;
+    this.commandHistory = [];
+    this.historyIndex = -1;
+    this.historyDraft = '';
+    this.suppressInputTracking = false;
 
     this.root = document.createElement('div');
     this.root.className = 'system-terminal hidden';
@@ -176,6 +181,7 @@ export class TerminalWindow {
       this.scroller.append(this.promptRow);
 
       this.input.addEventListener('keydown', (event) => this.onInputKeyDown(event));
+      this.input.addEventListener('input', () => this.onInputChange());
       this.viewport.addEventListener('pointerdown', () => {
         if (this.visible) {
           this.focusInput();
@@ -516,8 +522,110 @@ export class TerminalWindow {
     });
   }
 
+  onInputChange() {
+    if (this.suppressInputTracking || !this.input) return;
+    if (this.historyIndex !== -1) {
+      this.historyIndex = -1;
+    }
+    this.historyDraft = this.input.value;
+  }
+
+  setInputValue(value) {
+    if (!this.input) return;
+
+    this.suppressInputTracking = true;
+    this.input.value = value;
+    this.input.setSelectionRange(this.input.value.length, this.input.value.length);
+    this.suppressInputTracking = false;
+  }
+
+  pushCommandHistory(command) {
+    const normalized = String(command ?? '');
+    if (!normalized.trim()) return;
+    if (this.commandHistory[this.commandHistory.length - 1] === normalized) return;
+
+    this.commandHistory.push(normalized);
+    if (this.commandHistory.length > 100) {
+      this.commandHistory.shift();
+    }
+  }
+
+  cycleHistory(direction) {
+    if (!this.input || this.commandHistory.length === 0) return;
+
+    if (this.historyIndex === -1) {
+      this.historyDraft = this.input.value;
+      this.historyIndex = direction < 0 ? this.commandHistory.length - 1 : -1;
+    } else {
+      this.historyIndex = Math.max(-1, Math.min(this.commandHistory.length - 1, this.historyIndex + direction));
+    }
+
+    if (this.historyIndex === -1) {
+      this.setInputValue(this.historyDraft);
+      return;
+    }
+
+    this.setInputValue(this.commandHistory[this.historyIndex]);
+  }
+
+  getLongestCommonPrefix(values) {
+    if (values.length === 0) return '';
+
+    let prefix = values[0];
+    for (let index = 1; index < values.length; index += 1) {
+      while (!values[index].startsWith(prefix) && prefix.length > 0) {
+        prefix = prefix.slice(0, -1);
+      }
+      if (!prefix) break;
+    }
+
+    return prefix;
+  }
+
+  completeInput() {
+    if (!this.input || !this.getCompletions) return;
+
+    const cursorIndex = this.input.selectionStart ?? this.input.value.length;
+    const beforeCursor = this.input.value.slice(0, cursorIndex);
+    const afterCursor = this.input.value.slice(cursorIndex);
+    if (/\s/.test(beforeCursor.trim())) return;
+
+    const prefix = beforeCursor.trimStart().toLowerCase();
+    const matches = this.getCompletions(prefix, this) ?? [];
+    if (matches.length === 0) return;
+
+    if (matches.length === 1) {
+      this.setInputValue(`${matches[0]} ${afterCursor}`);
+      return;
+    }
+
+    const sharedPrefix = this.getLongestCommonPrefix(matches);
+    if (sharedPrefix.length > prefix.length) {
+      this.setInputValue(`${sharedPrefix}${afterCursor}`);
+    }
+  }
+
   async onInputKeyDown(event) {
     if (this.appMode) return;
+
+    if (event.key === 'Tab') {
+      event.preventDefault();
+      this.completeInput();
+      return;
+    }
+
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      this.cycleHistory(-1);
+      return;
+    }
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      this.cycleHistory(1);
+      return;
+    }
+
     if (event.key !== 'Enter' || event.shiftKey) return;
 
     event.preventDefault();
@@ -527,12 +635,15 @@ export class TerminalWindow {
 
     this.appendLine(`${this.promptText}${rawValue}`);
     this.input.value = '';
+    this.historyIndex = -1;
+    this.historyDraft = '';
     this.scrollToBottom();
 
     if (!command || !this.onCommand) {
       return;
     }
 
+    this.pushCommandHistory(rawValue);
     const response = await this.onCommand(command, this);
     this.appendResponse(response);
   }

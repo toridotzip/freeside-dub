@@ -30,6 +30,7 @@ const BOOT_TERMINAL_KEYMAP = {
 const EQ_TERMINAL_LABELS = ['32', '64', '125', '250', '500', '1k', '2k', '4k', '6k', '8k', '12k', '16k'];
 const WATERFALL_CHARSET = ' .:-=+*#%@';
 const COMMAND_TOKEN_PATTERN = /"([^"\\]*(?:\\.[^"\\]*)*)"|'([^'\\]*(?:\\.[^'\\]*)*)'|(\S+)/g;
+const COMMAND_TERMINAL_COMMANDS = ['anal', 'chsh', 'echo', 'eq', 'help'];
 
 function formatBootTimestamp(date) {
   const weekday = date.toLocaleDateString('en-US', { weekday: 'short' });
@@ -54,6 +55,25 @@ function escapeTerminalHtml(value) {
 
 function renderTerminalAppHtml(lines) {
   return lines.map((line) => `<div class="system-terminal__app-line">${line}</div>`).join('');
+}
+
+function formatTerminalOsName(value) {
+  const os = normalizeTerminalOs(value);
+
+  if (os === 'MACOS') return 'macos';
+  if (os === 'LINUX') return 'linux';
+  return 'windows';
+}
+
+function resolveTerminalOsArgument(value) {
+  const normalized = String(value ?? '').trim().toLowerCase();
+
+  if (!normalized) return null;
+  if (['windows', 'win', 'cmd', 'w'].includes(normalized)) return 'WINDOWS';
+  if (['macos', 'mac', 'osx', 'darwin', 'm'].includes(normalized)) return 'MACOS';
+  if (['linux', 'lin', 'bash', 'l'].includes(normalized)) return 'LINUX';
+
+  return null;
 }
 
 function tokenizeCommandInput(input) {
@@ -575,12 +595,12 @@ export class SpaceStationScene {
       baseOffsetX: offset.x,
       baseOffsetY: offset.y,
       onCommand: (command, terminal) => this.handleCommandTerminalCommand(command, terminal),
+      getCompletions: (prefix) => COMMAND_TERMINAL_COMMANDS.filter((command) => command.startsWith(prefix.toLowerCase())),
     });
 
     terminal.root.classList.add('system-terminal--command');
     terminal.appendResponse([
-      'Freeside command relay online.',
-      'Try: echo, eq, anal',
+      'popping a shell... type `help` for help',
       '',
     ]);
 
@@ -605,7 +625,7 @@ export class SpaceStationScene {
 
   handleCommandTerminalCommand(command, terminal) {
     const parsed = parseCommandInput(command);
-    const { name, flags, rawArgs } = parsed;
+    const { name, args, flags, rawArgs } = parsed;
     const colorized = flags.has('--color');
 
     if (name === 'echo') {
@@ -641,12 +661,31 @@ export class SpaceStationScene {
         'echo <text>     - repeat text back to the terminal',
         'eq [--color]    - 12-band ASCII EQ meter',
         'anal [--color]  - waterfall audio analyser',
+        'chsh [style]    - show or change shell style',
       ];
+    }
+
+    if (name === 'chsh') {
+      if (args.length === 0) {
+        return `Current shell style: ${formatTerminalOsName(terminal.os)}`;
+      }
+
+      if (args.length > 1) {
+        return 'Usage: chsh [windows|macos|linux]';
+      }
+
+      const nextOs = resolveTerminalOsArgument(args[0]);
+      if (!nextOs) {
+        return `Unknown shell style: ${args[0]}\nAvailable styles: windows, macos, linux`;
+      }
+
+      this.setBootTerminalOs(nextOs);
+      return `Shell style changed to ${formatTerminalOsName(nextOs)}.`;
     }
 
     return [
       `Unknown command: ${command}`,
-      'Available commands: echo, eq, anal',
+      'Available commands: echo, eq, anal, chsh',
     ];
   }
 
