@@ -7,28 +7,28 @@ const EQ_TERMINAL_LABELS = ['32', '64', '125', '250', '500', '1k', '2k', '4k', '
 function buildEqMeterFrame(options = {}) {
   const colorized = Boolean(options.colorized);
   const levels = sampleTerminalSpectrumBands(EQ_TERMINAL_LABELS.length);
-  const meterHeight = 10;
+  const meterHeight = 12;
   const grid = [];
-  const hueShift = events.state.sweep * 35 + events.state.shimmer * 25;
+  const hueShift = events.state.sweep * 45 + events.state.shimmer * 35;
 
   for (let row = meterHeight; row >= 1; row -= 1) {
     const threshold = row / meterHeight;
     if (!colorized) {
-      const cells = levels.map((level) => (level >= threshold ? '##' : '  '));
-      grid.push(` ${cells.join(' ')}`);
+      const cells = levels.map((level) => (level >= threshold ? '###' : '   '));
+      grid.push(`  ${cells.join(' ')}`);
       continue;
     }
 
     const cells = levels.map((level, index) => {
-      if (level < threshold) return '  ';
+      if (level < threshold) return '   ';
 
       const hue = Math.round((index / Math.max(1, EQ_TERMINAL_LABELS.length - 1)) * 220 + 20 + hueShift) % 360;
       const saturation = Math.round(78 + level * 16);
       const lightness = Math.round(46 + level * 18 + events.state.energy * 10);
-      return `<span style="color:hsl(${hue} ${saturation}% ${lightness}%)">##</span>`;
+      return `<span style="color:hsl(${hue} ${saturation}% ${lightness}%)">###</span>`;
     });
 
-    grid.push(` ${cells.join(' ')}`);
+    grid.push(`  ${cells.join(' ')}`);
   }
 
   const low = Math.round((events.state.bands.bass + events.state.bands.lowmid) * 50);
@@ -39,9 +39,9 @@ function buildEqMeterFrame(options = {}) {
     `SOURCE ${audio.isPlaying ? 'LIVE' : 'IDLE'}  ENERGY ${Math.round(events.state.energy * 100).toString().padStart(3, '0')}  RMS ${Math.round(events.state.rms * 100).toString().padStart(3, '0')}`,
     '',
     ...grid,
-    ` ${EQ_TERMINAL_LABELS.map((label) => label.padStart(2, ' ')).join(' ')}`,
+    `  ${EQ_TERMINAL_LABELS.map((label) => label.padStart(3, ' ')).join(' ')}`,
     '',
-    `LOW ${String(low).padStart(3, '0')}  MID ${String(mid).padStart(3, '0')}  HIGH ${String(high).padStart(3, '0')}  PRESS ANY KEY TO EXIT`,
+    ` LOW ${String(low).padStart(3, '0')}  MID ${String(mid).padStart(3, '0')}  HIGH ${String(high).padStart(3, '0')}  PRESS ANY KEY TO EXIT`,
   ];
 
   if (!colorized) {
