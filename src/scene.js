@@ -482,13 +482,17 @@ export class SpaceStationScene {
     this.freecam.lookDirection.copy(lookDirection).normalize();
     this.freecam.yaw = Math.atan2(this.freecam.lookDirection.x, this.freecam.lookDirection.z);
     this.freecam.pitch = Math.asin(THREE.MathUtils.clamp(this.freecam.lookDirection.y, -1, 1));
+    this.resetFreecamMovement();
+
+    this.renderer.domElement.requestPointerLock?.();
+  }
+
+  resetFreecamMovement() {
     this.freecam.moveState.forward = false;
     this.freecam.moveState.backward = false;
     this.freecam.moveState.left = false;
     this.freecam.moveState.right = false;
     this.freecam.moveState.boost = false;
-
-    this.renderer.domElement.requestPointerLock?.();
   }
 
   disableFreecam(options = {}) {
@@ -502,11 +506,7 @@ export class SpaceStationScene {
 
     this.freecam.active = false;
     this.freecam.terminal = null;
-    this.freecam.moveState.forward = false;
-    this.freecam.moveState.backward = false;
-    this.freecam.moveState.left = false;
-    this.freecam.moveState.right = false;
-    this.freecam.moveState.boost = false;
+    this.resetFreecamMovement();
 
     if (releasePointerLock && document.pointerLockElement === this.renderer.domElement) {
       document.exitPointerLock?.();
@@ -949,6 +949,8 @@ export class SpaceStationScene {
     window.addEventListener('pointermove', (event) => this.onPointerMove(event));
     window.addEventListener('keydown', (event) => this.onKeyDown(event));
     window.addEventListener('keyup', (event) => this.onKeyUp(event));
+    window.addEventListener('blur', () => this.onWindowBlur());
+    document.addEventListener('visibilitychange', () => this.onVisibilityChange());
     document.addEventListener('pointerlockchange', () => this.onPointerLockChange());
     document.addEventListener('pointerlockerror', () => this.onPointerLockError());
     window.addEventListener('pointerout', (event) => {
@@ -1046,6 +1048,20 @@ export class SpaceStationScene {
 
     if (event.key === 'Shift') {
       this.freecam.moveState.boost = false;
+    }
+  }
+
+  onWindowBlur() {
+    this.pointerActive = false;
+    this.pointerVelocity.set(0, 0);
+
+    if (!this.freecam.active) return;
+    this.disableFreecam({ releasePointerLock: false });
+  }
+
+  onVisibilityChange() {
+    if (document.visibilityState === 'hidden') {
+      this.onWindowBlur();
     }
   }
 

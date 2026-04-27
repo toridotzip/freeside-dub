@@ -343,7 +343,11 @@ export class TerminalWindow {
     this.scrollToBottom();
     this.open();
     this.focusInput();
-    this.renderAppFrame(performance.now() / 1000, 0, {});
+    const startTime = performance.now() / 1000;
+    this.renderAppFrame(startTime, 0, {});
+    if (this.appMode) {
+      this.appMode.lastFrameTime = startTime - this.appMode.frameInterval;
+    }
   }
 
   exitAppMode(context = {}) {

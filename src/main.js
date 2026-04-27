@@ -131,6 +131,7 @@ async function resolveAudioSourceConfig() {
       url: FALLBACK_AUDIO_URL,
       label: 'Local fallback archive',
       status: 'FALLBACK',
+      isOfflineFallback: true,
       metadata: {
         title: 'Offline fallback archive',
         description: 'Mixnet relay unavailable. Switching to the bundled audio file.',
@@ -167,6 +168,7 @@ function buildMetadataEntries(audioSource) {
 }
 
 function renderMetadata(container, entries) {
+  container.classList.remove('metadata-grid--offline');
   container.replaceChildren();
 
   entries.forEach(([label, value]) => {
@@ -182,6 +184,22 @@ function renderMetadata(container, entries) {
     card.append(title, text);
     container.append(card);
   });
+}
+
+function renderOfflineMetadata(container) {
+  container.classList.add('metadata-grid--offline');
+  container.replaceChildren();
+
+  const indicator = document.createElement('div');
+  indicator.className = 'offline-indicator';
+
+  const text = document.createElement('span');
+  text.className = 'offline-indicator__text';
+  text.dataset.text = 'OFFLINE';
+  text.textContent = 'OFFLINE';
+
+  indicator.append(text);
+  container.append(indicator);
 }
 
 function sanitizeTerminalValue(value, maxLength = 54) {
@@ -344,7 +362,11 @@ async function init() {
   subhead.textContent = audioSource.summaryLabel;
   bodyCopy.textContent = audioSource.detailText;
   hint.textContent = audioSource.hintText;
-  renderMetadata(metadataContainer, buildMetadataEntries(audioSource));
+  if (audioSource.isOfflineFallback) {
+    renderOfflineMetadata(metadataContainer);
+  } else {
+    renderMetadata(metadataContainer, buildMetadataEntries(audioSource));
+  }
   setMode(modeLabel, audioSource.modeLabel);
   scene.setTelemetry(buildTerminalTelemetry(audioSource, runtimeProfile));
 

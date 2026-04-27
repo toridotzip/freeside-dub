@@ -2,7 +2,7 @@ import { formatTerminalOsName, resolveTerminalOsArgument } from './os.js';
 
 export default {
   name: 'chsh',
-  run({ scene, terminal, parsed }) {
+  run({ terminal, parsed }) {
     const { args } = parsed;
 
     if (args.length === 0) {
@@ -18,7 +18,7 @@ export default {
       return `Unknown shell style: ${args[0]}\nAvailable styles: windows, macos, linux`;
     }
 
-    scene.setBootTerminalOs(nextOs);
+    terminal.applyVariant(nextOs);
     return `Shell style changed to ${formatTerminalOsName(nextOs)}.`;
   },
 };
