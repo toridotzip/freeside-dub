@@ -165,7 +165,8 @@ const ADAPTIVE_RENDER_SETTINGS_BY_KEY = new Map(
 export class SpaceStationScene {
   constructor(canvasContainer, options = {}) {
     this.container = canvasContainer;
-    this.clock = new THREE.Clock();
+    this.clock = new THREE.Timer();
+    this.clock.connect(document);
     this.loader = new GLTFLoader();
     initializeTerminalRuntimeState(this, options);
 
@@ -568,13 +569,14 @@ export class SpaceStationScene {
   }
 
   update() {
+    this.clock.update();
     const dt = this.clock.getDelta();
     this.accumulatedDt += dt;
     if (this.accumulatedDt < this.frameInterval) return;
 
     const frameDt = this.frameInterval;
     this.accumulatedDt %= this.frameInterval;
-    const time = this.clock.getElapsedTime();
+    const time = this.clock.getElapsed();
 
     this.updateCamera(time, frameDt);
     this.updateStationMotion(time, frameDt);
