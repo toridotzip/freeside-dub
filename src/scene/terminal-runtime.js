@@ -666,11 +666,12 @@ const terminalRuntimeMethods = {
   },
 
   updateTerminals(time, dt) {
-    if (this.terminals.length === 0) return;
+    const terminals = this.terminals;
+    if (terminals.length === 0) return;
 
     this.pointerState.active = this.pointerActive;
 
-    this.terminals.forEach((terminal) => {
+    terminals.forEach((terminal) => {
       terminal.update(time, dt, this.pointerState, events.state, { audio });
     });
   },

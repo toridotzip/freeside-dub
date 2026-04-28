@@ -15,41 +15,49 @@ let scene;
 let lastTime = performance.now();
 let hasStarted = false;
 
-function loadStoredVolume() {
+function readStorageItem(key, fallback, onError = null) {
   try {
-    const raw = localStorage.getItem(VOLUME_STORAGE_KEY);
-    if (raw === null) return DEFAULT_VOLUME;
-    const parsed = Number.parseFloat(raw);
-    if (!Number.isFinite(parsed)) return DEFAULT_VOLUME;
-    return Math.max(0, Math.min(1, parsed));
+    const value = localStorage.getItem(key);
+    return value === null ? fallback : value;
   } catch (error) {
-    console.error('Failed to read stored volume', error);
-    return DEFAULT_VOLUME;
+    onError?.(error);
+    return fallback;
   }
+}
+
+function writeStorageItem(key, value, onError = null) {
+  try {
+    localStorage.setItem(key, value);
+  } catch (error) {
+    onError?.(error);
+  }
+}
+
+function loadStoredVolume() {
+  const raw = readStorageItem(VOLUME_STORAGE_KEY, null, (error) => {
+    console.error('Failed to read stored volume', error);
+  });
+  if (raw === null) return DEFAULT_VOLUME;
+
+  const parsed = Number.parseFloat(raw);
+  if (!Number.isFinite(parsed)) return DEFAULT_VOLUME;
+  return Math.max(0, Math.min(1, parsed));
 }
 
 function persistVolume(volume) {
-  try {
-    localStorage.setItem(VOLUME_STORAGE_KEY, String(volume));
-  } catch (error) {
+  writeStorageItem(VOLUME_STORAGE_KEY, String(volume), (error) => {
     console.error('Failed to persist volume', error);
-  }
+  });
 }
 
 function hasBootBeenShown() {
-  try {
-    return localStorage.getItem(BOOT_SHOWN_STORAGE_KEY) === '1';
-  } catch {
-    return false;
-  }
+  return readStorageItem(BOOT_SHOWN_STORAGE_KEY, '0') === '1';
 }
 
 function persistBootShown() {
-  try {
-    localStorage.setItem(BOOT_SHOWN_STORAGE_KEY, '1');
-  } catch (error) {
+  writeStorageItem(BOOT_SHOWN_STORAGE_KEY, '1', (error) => {
     console.error('Failed to persist boot-shown flag', error);
-  }
+  });
 }
 
 function setupVolumeControl() {

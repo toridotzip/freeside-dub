@@ -387,7 +387,7 @@ export class SpaceStationScene {
       this.backdropArcs.visible = profile.showBackdropArcs;
     }
 
-    Object.values(this.stationRegions).forEach((region) => {
+    this.stationRegionList.forEach((region) => {
       this.setCollectionVisibility(region.vertices, profile.showVertices);
       this.setCollectionVisibility(region.effects, profile.showRegionEffects);
     });

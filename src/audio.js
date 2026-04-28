@@ -46,19 +46,24 @@ export class AudioEngine {
       hitState,
       cooldownTimer: 0,
       cooldownMax,
-      energyHistory: [],
-      fluxHistory: [],
+      fluxHistory: new Float32Array(this.historySize),
+      fluxHistoryIndex: 0,
+      fluxHistoryCount: 0,
+      fluxSum: 0,
+      fluxSumSquares: 0,
       envelope: 0,
       floor: 0,
       peak: initialPeak,
       initialPeak,
       transient: 0,
+      range: 1,
     }));
 
     const sampleRate = this.ctx.sampleRate || 44100;
     this.bands.forEach((band) => {
       band.minIdx = Math.max(0, Math.floor((band.minFreq / (sampleRate / 2)) * this.bufferLength));
       band.maxIdx = Math.min(this.bufferLength - 1, Math.ceil((band.maxFreq / (sampleRate / 2)) * this.bufferLength));
+      band.range = Math.max(1, band.maxIdx - band.minIdx);
     });
 
     this.lastTime = performance.now();
@@ -89,21 +94,20 @@ export class AudioEngine {
 
     this.bands.forEach((band) => {
       band.cooldownTimer = 0;
-      band.energyHistory.length = 0;
-      band.fluxHistory.length = 0;
+      band.fluxHistoryIndex = 0;
+      band.fluxHistoryCount = 0;
+      band.fluxSum = 0;
+      band.fluxSumSquares = 0;
       band.envelope = 0;
       band.floor = 0;
       band.peak = band.initialPeak;
       band.transient = 0;
+      state.bands[band.name] = 0;
     });
 
     state.energy = 0;
     state.rms = 0;
     state.centroid = 0;
-
-    for (const name in state.bands) {
-      state.bands[name] = 0;
-    }
   }
 
   disconnectBufferSource() {
@@ -262,46 +266,28 @@ export class AudioEngine {
     return this.output.gain.value;
   }
 
-  pushHistory(history, value) {
-    history.push(value);
-    if (history.length > this.historySize) {
-      history.shift();
-    }
-  }
+  recordFluxSample(band, flux) {
+    const index = band.fluxHistoryIndex;
+    const oldValue = band.fluxHistoryCount === this.historySize ? band.fluxHistory[index] : 0;
 
-  getHistoryStats(history) {
-    const n = history.length;
-    if (n === 0) return { avg: 0, variance: 0 };
-    const avg = history.reduce((s, v) => s + v, 0) / n;
-    const variance = history.reduce((s, v) => s + (v - avg) ** 2, 0) / n;
-    return { avg, variance };
-  }
-
-  getFluxInBand(minIdx, maxIdx) {
-    let flux = 0;
-
-    for (let i = minIdx; i < maxIdx; i++) {
-      const diff = this.dataArray[i] - this.previousDataArray[i];
-      if (diff > 0) flux += diff;
+    band.fluxHistory[index] = flux;
+    band.fluxHistoryIndex = (index + 1) % this.historySize;
+    if (band.fluxHistoryCount < this.historySize) {
+      band.fluxHistoryCount += 1;
     }
 
-    const range = Math.max(1, maxIdx - minIdx);
-    return flux / range;
-  }
-
-  getEnergyInBand(minIdx, maxIdx) {
-    let sum = 0;
-
-    for (let i = minIdx; i < maxIdx; i++) {
-      sum += this.dataArray[i];
-    }
-
-    const range = Math.max(1, maxIdx - minIdx);
-    return sum / range;
+    band.fluxSum += flux - oldValue;
+    band.fluxSumSquares += flux * flux - oldValue * oldValue;
   }
 
   getRms() {
-    const sum = this.timeDataArray.reduce((s, v) => { const t = (v - 128) / 128; return s + t * t; }, 0);
+    let sum = 0;
+
+    for (let i = 0; i < this.timeDataArray.length; i++) {
+      const centered = (this.timeDataArray[i] - 128) / 128;
+      sum += centered * centered;
+    }
+
     return Math.sqrt(sum / this.timeDataArray.length);
   }
 
@@ -338,6 +324,9 @@ export class AudioEngine {
   update() {
     if (!this.isPlaying) return;
 
+    const state = events.state;
+    const stateBands = state.bands;
+
     this.previousDataArray.set(this.dataArray);
     this.analyser.getByteFrequencyData(this.dataArray);
     this.analyser.getByteTimeDomainData(this.timeDataArray);
@@ -348,40 +337,51 @@ export class AudioEngine {
 
     const rms = this.getRms();
     const centroid = this.getSpectralCentroid();
+    const transientDecay = Math.pow(0.5, dt * 10);
 
     let totalEnvelope = 0;
 
-    this.bands.forEach((band) => {
-      const energy = this.getEnergyInBand(band.minIdx, band.maxIdx) / 255.0;
-      const flux = this.getFluxInBand(band.minIdx, band.maxIdx) / 255.0;
+    for (const band of this.bands) {
+      let energySum = 0;
+      let fluxSum = 0;
 
-      this.pushHistory(band.energyHistory, energy);
-      this.pushHistory(band.fluxHistory, flux);
+      for (let i = band.minIdx; i < band.maxIdx; i++) {
+        const value = this.dataArray[i];
+        energySum += value;
+        const diff = value - this.previousDataArray[i];
+        if (diff > 0) fluxSum += diff;
+      }
 
+      const energy = energySum / band.range / 255;
+      const flux = fluxSum / band.range / 255;
+      this.recordFluxSample(band, flux);
       const normalized = this.updateBandEnvelope(band, energy, dt);
-      const { avg: avgFlux, variance: fluxVariance } = this.getHistoryStats(band.fluxHistory);
+      const avgFlux = band.fluxHistoryCount ? band.fluxSum / band.fluxHistoryCount : 0;
+      const fluxVariance = band.fluxHistoryCount
+        ? Math.max(0, band.fluxSumSquares / band.fluxHistoryCount - avgFlux * avgFlux)
+        : 0;
       const transientThreshold = avgFlux + Math.sqrt(fluxVariance) * 0.8 + 0.01;
       const transient = Math.max(0, (flux - transientThreshold) * 5.0);
 
-      band.transient *= Math.pow(0.5, dt * 10.0);
+      band.transient *= transientDecay;
       band.transient = Math.max(band.transient, transient);
       band.cooldownTimer -= dt;
 
       const confidence = Math.min(1.2, normalized * 0.6 + band.transient * 0.4);
-      events.state.bands[band.name] = band.envelope;
+      stateBands[band.name] = band.envelope;
 
       if (confidence > band.triggerThreshold && normalized > band.minLevel && band.cooldownTimer <= 0) {
         events.emit(`beat_${band.name}`, { confidence, energy, flux, normalized, transient: band.transient });
 
         if (band.hitState) {
-          events.state[band.hitState] = 1.0;
+          state[band.hitState] = 1.0;
         }
 
         band.cooldownTimer = band.cooldownMax;
       }
 
       totalEnvelope += band.envelope;
-    });
+    }
 
     const [bass, lowmid, mid, highmid, high] = this.bands;
 
@@ -389,17 +389,17 @@ export class AudioEngine {
     const midDrive = lowmid.envelope * 0.2 + mid.envelope * 0.55 + highmid.envelope * 0.25;
     const highDrive = highmid.envelope * 0.42 + high.envelope * 0.58;
 
-    events.state.rms = rms;
-    events.state.centroid = centroid;
-    events.state.energy = totalEnvelope / this.bands.length;
-    events.state.pulse = Math.max(events.state.pulse, lowDrive * 0.32 + bass.transient * 0.75 + rms * 0.2);
-    events.state.sweep = Math.max(events.state.sweep, midDrive * 0.42 + highmid.transient * 0.45 + centroid * 0.22);
-    events.state.shimmer = Math.max(events.state.shimmer, highDrive * 0.34 + high.transient * 0.62);
-    events.state.distortion = Math.max(events.state.distortion, bass.transient * 0.45 + mid.transient * 0.18);
-    events.state.fringe = Math.max(events.state.fringe, high.transient * 0.32 + highDrive * 0.14);
+    state.rms = rms;
+    state.centroid = centroid;
+    state.energy = totalEnvelope / this.bands.length;
+    state.pulse = Math.max(state.pulse, lowDrive * 0.32 + bass.transient * 0.75 + rms * 0.2);
+    state.sweep = Math.max(state.sweep, midDrive * 0.42 + highmid.transient * 0.45 + centroid * 0.22);
+    state.shimmer = Math.max(state.shimmer, highDrive * 0.34 + high.transient * 0.62);
+    state.distortion = Math.max(state.distortion, bass.transient * 0.45 + mid.transient * 0.18);
+    state.fringe = Math.max(state.fringe, high.transient * 0.32 + highDrive * 0.14);
 
-    const speedTarget = 0.86 + events.state.energy * 0.24 + lowmid.envelope * 0.1 + rms * 0.08;
-    events.state.globalSpeed += (speedTarget - events.state.globalSpeed) * Math.min(1, dt * 2.8);
+    const speedTarget = 0.86 + state.energy * 0.24 + lowmid.envelope * 0.1 + rms * 0.08;
+    state.globalSpeed += (speedTarget - state.globalSpeed) * Math.min(1, dt * 2.8);
   }
 }
 

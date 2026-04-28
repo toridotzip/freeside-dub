@@ -95,6 +95,7 @@ export function initializeStationVisualState(scene) {
   scene.sharedInvisibleMaterial.colorWrite = false;
   scene.panelWireMaterial = createLineMaterial({ color: 0x7ae7ff, opacity: 0.48 });
   scene.stationRegions = createStationRegions();
+  scene.stationRegionList = Object.values(scene.stationRegions);
   scene.panelEntries = [];
 
   scene.tempBox = new THREE.Box3();
@@ -115,7 +116,7 @@ const stationVisualMethods = {
   setStationModel(model) {
     this.stationModelGroup.clear();
     this.panelEntries = [];
-    Object.values(this.stationRegions).forEach((region) => {
+    this.stationRegionList.forEach((region) => {
       region.vertices = [];
       region.effects = [];
     });
@@ -436,11 +437,10 @@ const stationVisualMethods = {
     }
   },
 
-  applyReactiveMaterial(material, baseColor, opacity, ...lerps) {
+  applyReactiveMaterial(material, baseColor, opacity, colorA = null, amountA = 0, colorB = null, amountB = 0) {
     material.color.copy(baseColor);
-    lerps.forEach(([color, amount]) => {
-      material.color.lerp(color, amount);
-    });
+    if (colorA && amountA > 0) material.color.lerp(colorA, amountA);
+    if (colorB && amountB > 0) material.color.lerp(colorB, amountB);
     material.opacity = opacity;
   },
 
@@ -452,15 +452,15 @@ const stationVisualMethods = {
     const foreRegion = this.stationRegions.fore;
     const aftRegion = this.stationRegions.aft;
 
-    this.applyReactiveMaterial(this.panelWireMaterial, CYAN, 0.38 + bands.lowmid * 0.22 + shimmer * 0.12, [BLUE, bands.lowmid * 0.3], [PINK, shimmer * 0.14]);
-    this.applyReactiveMaterial(bodyRegion.wireMaterial, CYAN, 0.24 + pulse * 0.16, [BLUE, sweep * 0.18]);
-    this.applyReactiveMaterial(coreRegion.wireMaterial, PINK, 0.34 + bands.mid * 0.32 + sweep * 0.12, [CYAN, sweep * 0.24]);
-    this.applyReactiveMaterial(foreRegion.wireMaterial, CYAN, 0.28 + shimmer * 0.24 + centroid * 0.12, [BLUE, centroid * 0.24]);
-    this.applyReactiveMaterial(aftRegion.wireMaterial, ORANGE, 0.34 + bassHit * 0.28 + pulse * 0.12, [PINK, bassHit * 0.12]);
-    this.applyReactiveMaterial(bodyRegion.vertexMaterial, CYAN, 0.28 + pulse * 0.18, [BLUE, sweep * 0.18]);
-    this.applyReactiveMaterial(coreRegion.vertexMaterial, PINK, 0.46 + bands.mid * 0.24 + sweep * 0.14, [CYAN, sweep * 0.2]);
-    this.applyReactiveMaterial(foreRegion.vertexMaterial, CYAN, 0.36 + shimmer * 0.22 + centroid * 0.1, [BLUE, centroid * 0.2]);
-    this.applyReactiveMaterial(aftRegion.vertexMaterial, ORANGE, 0.4 + bassHit * 0.22 + pulse * 0.1, [PINK, pulse * 0.12]);
+    this.applyReactiveMaterial(this.panelWireMaterial, CYAN, 0.38 + bands.lowmid * 0.22 + shimmer * 0.12, BLUE, bands.lowmid * 0.3, PINK, shimmer * 0.14);
+    this.applyReactiveMaterial(bodyRegion.wireMaterial, CYAN, 0.24 + pulse * 0.16, BLUE, sweep * 0.18);
+    this.applyReactiveMaterial(coreRegion.wireMaterial, PINK, 0.34 + bands.mid * 0.32 + sweep * 0.12, CYAN, sweep * 0.24);
+    this.applyReactiveMaterial(foreRegion.wireMaterial, CYAN, 0.28 + shimmer * 0.24 + centroid * 0.12, BLUE, centroid * 0.24);
+    this.applyReactiveMaterial(aftRegion.wireMaterial, ORANGE, 0.34 + bassHit * 0.28 + pulse * 0.12, PINK, bassHit * 0.12);
+    this.applyReactiveMaterial(bodyRegion.vertexMaterial, CYAN, 0.28 + pulse * 0.18, BLUE, sweep * 0.18);
+    this.applyReactiveMaterial(coreRegion.vertexMaterial, PINK, 0.46 + bands.mid * 0.24 + sweep * 0.14, CYAN, sweep * 0.2);
+    this.applyReactiveMaterial(foreRegion.vertexMaterial, CYAN, 0.36 + shimmer * 0.22 + centroid * 0.1, BLUE, centroid * 0.2);
+    this.applyReactiveMaterial(aftRegion.vertexMaterial, ORANGE, 0.4 + bassHit * 0.22 + pulse * 0.1, PINK, pulse * 0.12);
 
     if (qualityProfile.showPanelGlow) {
       this.panelEntries.forEach((entry, index) => {

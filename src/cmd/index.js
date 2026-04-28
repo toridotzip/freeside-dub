@@ -35,20 +35,7 @@ COMMAND_DEFINITIONS.forEach((definition) => {
   });
 });
 
-export const COMMAND_TERMINAL_COMMANDS = [
-  './anal',
-  './cmatrix',
-  './eq',
-  './fx',
-  './freecam',
-  'chsh',
-  'clear',
-  'echo',
-  'exit',
-  'help',
-  'ls',
-  'sh',
-];
+export const COMMAND_TERMINAL_COMMANDS = COMMAND_DEFINITIONS.map(({ name }) => name);
 
 export function getCommandCompletions(prefix = '') {
   const normalized = String(prefix ?? '').toLowerCase();
