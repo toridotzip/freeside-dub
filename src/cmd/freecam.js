@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { startTerminalApp } from './app-helpers.js';
 
 export default {
   name: './freecam',
@@ -12,7 +13,7 @@ export default {
       return 'Freecam disengaged.';
     }
 
-    terminal.startAppMode({
+    const result = startTerminalApp(terminal, {
       name: 'freecam',
       title: 'FREESIDE FREECAM',
       frameInterval: 1 / 24,
@@ -33,9 +34,9 @@ export default {
           'PRESS ESC TO RETURN TO THE SHELL',
         ].join('\n'),
       }),
-      onExit: () => ['Exited ./freecam.', ''],
+      exitMessage: 'Exited ./freecam.',
     });
     scene.enableFreecam(terminal);
-    return null;
+    return result;
   },
 };

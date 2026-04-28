@@ -12,6 +12,22 @@ export function renderTerminalAppHtml(lines) {
   return lines.map((line) => `<div class="system-terminal__app-line">${line}</div>`).join('');
 }
 
+export function startTerminalApp(terminal, options = {}) {
+  const {
+    exitMessage = null,
+    ...appOptions
+  } = options;
+
+  terminal.startAppMode({
+    ...appOptions,
+    ...(!appOptions.onExit && exitMessage
+      ? { onExit: () => [exitMessage, ''] }
+      : {}),
+  });
+
+  return null;
+}
+
 export function sampleTerminalSpectrumBands(count, minFreq = 32, maxFreq = 16000) {
   const spectrum = audio.dataArray;
   const length = spectrum?.length ?? 0;

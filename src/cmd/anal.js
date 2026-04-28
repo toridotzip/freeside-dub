@@ -1,6 +1,6 @@
 import { audio } from '../audio.js';
 import { events } from '../events.js';
-import { escapeTerminalHtml, renderTerminalAppHtml, sampleTerminalSpectrumBands } from './app-helpers.js';
+import { escapeTerminalHtml, renderTerminalAppHtml, sampleTerminalSpectrumBands, startTerminalApp } from './app-helpers.js';
 
 const WATERFALL_CHARSET = ' .:-=+*#%@';
 
@@ -22,7 +22,11 @@ function buildWaterfallFrame(state, options = {}) {
     levels: Array.from({ length: width }, () => 0),
   });
 
-  const rowMarkup = rows.map((entry, rowIndex) => {
+  const rowLines = rows.map((entry, rowIndex) => {
+    if (!colorized) {
+      return ` |${entry.chars.join('')}|`;
+    }
+
     const ageFactor = rowIndex / Math.max(1, depth - 1);
     const chars = entry.chars.map((char, index) => {
       const level = entry.levels[index] ?? 0;
@@ -41,12 +45,12 @@ function buildWaterfallFrame(state, options = {}) {
     'FREESIDE ANAL // WATERFALL SCAN',
     `SOURCE ${audio.isPlaying ? 'LIVE' : 'IDLE'}  SWEEP ${Math.round(events.state.sweep * 100).toString().padStart(3, '0')}  FRINGE ${Math.round(events.state.fringe * 100).toString().padStart(3, '0')}`,
     'PRESS ANY KEY TO EXIT',
-    ...rowMarkup,
+    ...rowLines,
     ' L ---------------------------------------------------------- H',
   ];
 
   if (!colorized) {
-    return plainLines.join('\n');
+    return lines.join('\n');
   }
 
   return {
@@ -60,14 +64,13 @@ export default {
   run({ terminal, parsed }) {
     const colorized = !parsed.flags.has('--no-color');
 
-    terminal.startAppMode({
+    return startTerminalApp(terminal, {
       name: './anal',
       title: 'FREESIDE ANAL',
       frameInterval: 1 / 20,
       state: { rows: [] },
       renderFrame: ({ state }) => buildWaterfallFrame(state, { colorized }),
-      onExit: () => ['nailed it.', ''],
+      exitMessage: 'nailed it.',
     });
-    return null;
   },
 };

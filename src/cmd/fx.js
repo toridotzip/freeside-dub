@@ -1,4 +1,4 @@
-import { escapeTerminalHtml, renderTerminalAppHtml } from './app-helpers.js';
+import { escapeTerminalHtml, renderTerminalAppHtml, startTerminalApp } from './app-helpers.js';
 
 function clampSelection(state, controls) {
   if (controls.length === 0) {
@@ -88,7 +88,7 @@ export default {
     }
 
     scene.beginAdaptiveRenderEditing();
-    terminal.startAppMode({
+    return startTerminalApp(terminal, {
       name: './fx',
       title: 'FREESIDE FX',
       frameInterval: 1 / 12,
@@ -101,7 +101,5 @@ export default {
         return ['Exited ./fx.', ''];
       },
     });
-
-    return null;
   },
 };

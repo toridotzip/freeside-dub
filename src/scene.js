@@ -67,6 +67,146 @@ const FREECAM_MOUSE_SENSITIVITY = 0.0023;
 const FREECAM_MAX_PITCH = Math.PI * 0.48;
 const FREECAM_BASE_SPEED = 12;
 const FREECAM_BOOST_MULTIPLIER = 1.9;
+const STATION_REGION_DEFINITIONS = [
+  ['body', {
+    wire: { color: 0x5dd7ff, opacity: 0.36 },
+    vertex: { color: 0x88ecff, size: 0.055, opacity: 0.42 },
+  }],
+  ['core', {
+    wire: { color: 0xff89e2, opacity: 0.52 },
+    vertex: { color: 0xff97e6, size: 0.065, opacity: 0.64 },
+    effectType: 'core',
+  }],
+  ['fore', {
+    wire: { color: 0x89d8ff, opacity: 0.45 },
+    vertex: { color: 0x9ce4ff, size: 0.06, opacity: 0.54 },
+    effectType: 'pulse',
+    effectColor: 0x72b8ff,
+  }],
+  ['aft', {
+    wire: { color: 0xffa76f, opacity: 0.52 },
+    vertex: { color: 0xffb07a, size: 0.06, opacity: 0.6 },
+    effectType: 'pulse',
+    effectColor: 0xffa15c,
+  }],
+];
+const BOOT_SEQUENCE_TEMPLATES = {
+  WINDOWS: {
+    intro: [
+      'Microsoft Windows [Version 10.0.19045.4291]',
+      '(c) Microsoft Corporation. All rights reserved.',
+      { pause: 220 },
+    ],
+    beforeFingerprint: [
+      'C:\\>cd Windows\\freeside',
+      'C:\\Windows\\freeside>',
+    ],
+    fingerprintCommand: 'C:\\Windows\\freeside>fingerprint.exe /quiet /ua /hooks /ext',
+    probeLine: 'Probe   browser shell ........ slightly cursed',
+    probePause: 260,
+    uplinkCommand: 'C:\\Windows\\freeside>uplink.exe /fast /shadowMount /spoof',
+    connectedLine: ({ normalizedTitle }) => `Connected to ${normalizedTitle}`,
+    mountLine: 'Mount   \\\\.\\relay\\upload ...... OK',
+    dumpCommand: 'C:\\Windows\\freeside>dump.bat',
+    dumpLines: [
+      'scanning...',
+      { pause: 320 },
+      'envs ...................DONE',
+      'mem dump ...............DONE',
+      'browser session ........DONE',
+      'system keyring .........DONE',
+      'Access denied - C:\\Windows\\pagefile.sys',
+      'Access denied - C:\\Windows\\swapfile.sys',
+      'Access denied - C:\\Windows\\system32',
+      'elevating to SYSTEM ....................nailed it.',
+      'wallets ................DONE',
+      'cookies ................DONE',
+    ],
+    compressionLine: 'zipping...',
+    uploadTarget: '\\\\.\\relay\\upload',
+    uploadProgress: [
+      'uploading .............. 12 % ',
+      'uploading .............. 29 % ',
+      'uploading .............. 51 % ',
+      'uploading .............. 92 % ',
+    ],
+    cleanupLine: 'cleaning up .............OK',
+    exitLine: 'C:\\> exit',
+    fingerprintSuffix: '\n',
+  },
+  MACOS: {
+    intro: ({ loginStamp }) => [`Last login: ${loginStamp} on console`],
+    beforeFingerprint: ['root@localhost ~ % cd /Volumes/Freeside'],
+    fingerprintCommand: 'root@localhost Freeside % ./fingerprint --quiet --ua --hooks --ext',
+    probeLine: 'probe.shell = Terminal.app / zsh',
+    probePause: 240,
+    uplinkCommand: 'root@localhost Freeside % ./uplink --fast --shadow-mount --spoof',
+    connectedLine: ({ normalizedTitle }) => `connected -> ${normalizedTitle}`,
+    mountLine: 'mount /Volumes/relay/upload ........ok',
+    dumpCommand: 'root@localhost Freeside % ./dump.sh',
+    dumpLines: [
+      'scanning...',
+      { pause: 320 },
+      'launch agents .................done',
+      'memory pages ..................done',
+      'browser session ...............done',
+      'keychain sweep ................done',
+      '/System/Library: Operation not permitted',
+      '/private/var/vm/sleepimage: Operation not permitted',
+      '/private/var/vm/swapfile0: Operation not permitted',
+      'sudo escalation ........................accepted.',
+      'wallets .......................done',
+      'cookies .......................done',
+    ],
+    compressionLine: 'compressing...',
+    uploadTarget: '/Volumes/relay/upload',
+    uploadProgress: [
+      'uploading ..................... 14%',
+      'uploading ..................... 33%',
+      'uploading ..................... 57%',
+      'uploading ..................... 95%\n',
+    ],
+    cleanupLine: 'cleanup ....................... ok',
+    exitLine: 'root@localhost Freeside % exit',
+    fingerprintSuffix: '\n',
+  },
+  LINUX: {
+    intro: [],
+    beforeFingerprint: ['root@localhost:~$ cd /opt/freeside/'],
+    fingerprintCommand: 'root@localhost:/opt/freeside$ ./fingerprint --quiet --ua --hooks --ext',
+    probeLine: 'probe.shell = bash',
+    probePause: 240,
+    uplinkCommand: 'root@localhost:/opt/freeside$ ./uplink --fast --shadow-mount --spoof',
+    connectedLine: ({ normalizedTitle }) => `connected -> ${normalizedTitle}`,
+    mountLine: 'mount /mnt/relay/upload ............ok',
+    dumpCommand: 'root@localhost:/opt/freeside$ ./dump.sh',
+    dumpLines: [
+      'scanning...',
+      { pause: 320 },
+      'env snapshots ...................... done',
+      'memory scrape ...................... done',
+      'browser session .................... done',
+      'credential store ................... done',
+      '/etc/shadow: Permission denied',
+      '/proc/kcore: Permission denied',
+      '/root: Permission denied',
+      'sudo escalation ........................ acquired.',
+      'wallets ............................ done',
+      'cookies ............................ done',
+    ],
+    compressionLine: 'compressing...',
+    uploadTarget: '/mnt/relay/upload',
+    uploadProgress: [
+      'uploading .......................... 11%',
+      'uploading .......................... 36%',
+      'uploading .......................... 63%',
+      'uploading .......................... 97%',
+    ],
+    cleanupLine: 'cleanup ............................ ok',
+    exitLine: 'root@localhost:/opt/freeside$ exit',
+    fingerprintSuffix: ' \n',
+  },
+};
 const QUALITY_PROFILES = [
   {
     name: 'low',
@@ -81,7 +221,7 @@ const QUALITY_PROFILES = [
     showRegionEffects: false,
     showBackdropArcs: false,
     starOpacity: 0.58,
-    starCount: 2800,
+    starCount: 2000,
   },
   {
     name: 'medium',
@@ -103,7 +243,7 @@ const QUALITY_PROFILES = [
     maxFps: 90,
     pixelRatioCap: 0.5,
     maxRenderPixels: 620000,
-    bloomDownscaleFactor: 0.72,
+    bloomDownscaleFactor: 0.8,
     enableBloom: true,
     enableGrain: true,
     showPanelGlow: true,
@@ -111,7 +251,7 @@ const QUALITY_PROFILES = [
     showRegionEffects: true,
     showBackdropArcs: true,
     starOpacity: 0.9,
-    starCount: 5200,
+    starCount: 5000,
   },
 ];
 const ADAPTIVE_RENDER_SETTING_DEFINITIONS = [
@@ -218,6 +358,31 @@ const ADAPTIVE_RENDER_SETTING_DEFINITIONS = [
 const ADAPTIVE_RENDER_SETTINGS_BY_KEY = new Map(
   ADAPTIVE_RENDER_SETTING_DEFINITIONS.map((definition) => [definition.key, definition]),
 );
+
+function createLineMaterial({ color, opacity }) {
+  return new THREE.LineBasicMaterial({ color, transparent: true, opacity, toneMapped: false });
+}
+
+function createPointsMaterial({ color, size, opacity }) {
+  return new THREE.PointsMaterial({ color, size, transparent: true, opacity, toneMapped: false });
+}
+
+function createStationRegions() {
+  return Object.fromEntries(STATION_REGION_DEFINITIONS.map(([key, definition]) => [
+    key,
+    {
+      ...definition,
+      wireMaterial: createLineMaterial(definition.wire),
+      vertexMaterial: createPointsMaterial(definition.vertex),
+      vertices: [],
+      effects: [],
+    },
+  ]));
+}
+
+function resolveBootTemplateValue(value, context) {
+  return typeof value === 'function' ? value(context) : value;
+}
 
 function formatBootTimestamp(date) {
   const weekday = date.toLocaleDateString('en-US', { weekday: 'short' });
@@ -329,7 +494,7 @@ export class SpaceStationScene {
 
     this.bloomPass = new UnrealBloomPass(
       new THREE.Vector2(...this.getBloomRenderSize()),
-      1.24,
+      0.34,
       0.35,
       0.52,
     );
@@ -386,34 +551,9 @@ export class SpaceStationScene {
       depthTest: true,
     });
     this.sharedInvisibleMaterial.colorWrite = false;
-    this.wireMaterials = {
-      body: new THREE.LineBasicMaterial({ color: 0x5dd7ff, transparent: true, opacity: 0.36, toneMapped: false }),
-      panels: new THREE.LineBasicMaterial({ color: 0x7ae7ff, transparent: true, opacity: 0.48, toneMapped: false }),
-      core: new THREE.LineBasicMaterial({ color: 0xff89e2, transparent: true, opacity: 0.52, toneMapped: false }),
-      fore: new THREE.LineBasicMaterial({ color: 0x89d8ff, transparent: true, opacity: 0.45, toneMapped: false }),
-      aft: new THREE.LineBasicMaterial({ color: 0xffa76f, transparent: true, opacity: 0.52, toneMapped: false }),
-    };
-    this.vertexMaterials = {
-      body: new THREE.PointsMaterial({ color: 0x88ecff, size: 0.055, transparent: true, opacity: 0.42, toneMapped: false }),
-      core: new THREE.PointsMaterial({ color: 0xff97e6, size: 0.065, transparent: true, opacity: 0.64, toneMapped: false }),
-      fore: new THREE.PointsMaterial({ color: 0x9ce4ff, size: 0.06, transparent: true, opacity: 0.54, toneMapped: false }),
-      aft: new THREE.PointsMaterial({ color: 0xffb07a, size: 0.06, transparent: true, opacity: 0.6, toneMapped: false }),
-    };
-
+    this.panelWireMaterial = createLineMaterial({ color: 0x7ae7ff, opacity: 0.48 });
+    this.stationRegions = createStationRegions();
     this.panelEntries = [];
-    this.forePanelBars = [];
-    this.aftPanelBars = [];
-    this.bodyWires = [];
-    this.coreWires = [];
-    this.foreWires = [];
-    this.aftWires = [];
-    this.bodyVertices = [];
-    this.coreVertices = [];
-    this.foreVertices = [];
-    this.aftVertices = [];
-    this.coreEffects = [];
-    this.foreEffects = [];
-    this.aftEffects = [];
 
     this.tempPoint = new THREE.Vector3();
     this.tempRadial = new THREE.Vector3();
@@ -484,7 +624,7 @@ export class SpaceStationScene {
     this.backdropArcs = new THREE.Group();
     [32, 44, 58].forEach((radius, index) => {
       const arc = new THREE.Mesh(
-        new THREE.TorusGeometry(radius, 0.06, 8, 128),
+        new THREE.TorusGeometry(radius, 0.15, 8, 48),
         new THREE.MeshBasicMaterial({
           color: index === 1 ? 0xff90e8 : 0x59d6ff,
           transparent: true,
@@ -536,15 +676,9 @@ export class SpaceStationScene {
     this.bloomPass.setSize(...this.getBloomRenderSize());
   }
 
-  setObjectVisibility(objects, isVisible) {
-    objects.forEach((object) => {
-      if (object) object.visible = isVisible;
-    });
-  }
-
-  setEffectVisibility(effects, isVisible) {
-    effects.forEach((effect) => {
-      const target = effect?.mesh || effect;
+  setCollectionVisibility(items, isVisible) {
+    items.forEach((item) => {
+      const target = item?.mesh || item;
       if (target) target.visible = isVisible;
     });
   }
@@ -572,13 +706,10 @@ export class SpaceStationScene {
       this.backdropArcs.visible = profile.showBackdropArcs;
     }
 
-    this.setObjectVisibility(this.bodyVertices, profile.showVertices);
-    this.setObjectVisibility(this.coreVertices, profile.showVertices);
-    this.setObjectVisibility(this.foreVertices, profile.showVertices);
-    this.setObjectVisibility(this.aftVertices, profile.showVertices);
-    this.setEffectVisibility(this.coreEffects, profile.showRegionEffects);
-    this.setEffectVisibility(this.foreEffects, profile.showRegionEffects);
-    this.setEffectVisibility(this.aftEffects, profile.showRegionEffects);
+    Object.values(this.stationRegions).forEach((region) => {
+      this.setCollectionVisibility(region.vertices, profile.showVertices);
+      this.setCollectionVisibility(region.effects, profile.showRegionEffects);
+    });
     this.panelEntries.forEach((entry) => {
       entry.frontMesh.visible = profile.showPanelGlow;
       entry.backMesh.visible = profile.showPanelGlow;
@@ -945,145 +1076,44 @@ export class SpaceStationScene {
     }
   }
 
-  buildWindowsBootSequence(normalizedTitle, fingerprintLines) {
-    const fingerprintBlock = fingerprintLines.length ? `${fingerprintLines.join('\n')}\n` : '';
+  buildBootScript(template, context) {
+    const fingerprintLines = context.fingerprintLines.slice(0, 10);
+    const fingerprintBlock = fingerprintLines.length
+      ? `${fingerprintLines.join('\n')}${template.fingerprintSuffix ?? '\n'}`
+      : '';
 
     return [
-      `Microsoft Windows [Version 10.0.19045.4291]`,
-      `(c) Microsoft Corporation. All rights reserved.`,
-      { pause: 220 },
-      `C:\\>cd Windows\\freeside`,
-      `C:\\Windows\\freeside>`,
-      `C:\\Windows\\freeside>fingerprint.exe /quiet /ua /hooks /ext`,
+      resolveBootTemplateValue(template.intro, context),
+      resolveBootTemplateValue(template.beforeFingerprint, context),
+      resolveBootTemplateValue(template.fingerprintCommand, context),
       fingerprintBlock,
-      `Probe   browser shell ........ slightly cursed`,
-      { pause: 260 },
-      `C:\\Windows\\freeside>uplink.exe /fast /shadowMount /spoof`,
-      `Connected to ${normalizedTitle}`,
-      `Mount   \\\\.\\relay\\upload ...... OK`,
+      resolveBootTemplateValue(template.probeLine, context),
+      { pause: resolveBootTemplateValue(template.probePause, context) ?? 240 },
+      resolveBootTemplateValue(template.uplinkCommand, context),
+      resolveBootTemplateValue(template.connectedLine, context),
+      resolveBootTemplateValue(template.mountLine, context),
       { pause: 180 },
-      [
-        `C:\\Windows\\freeside>dump.bat`,
-        `scanning...`,
-        { pause: 320 },
-        `envs ...................DONE`,
-        `mem dump ...............DONE`,
-        `browser session ........DONE`,
-        `system keyring .........DONE`,
-        `Access denied - C:\\Windows\\pagefile.sys`,
-        `Access denied - C:\\Windows\\swapfile.sys`,
-        `Access denied - C:\\Windows\\system32`,
-        `elevating to SYSTEM ....................nailed it.`,
-        `wallets ................DONE`,
-        `cookies ................DONE`,
-        { pause: 320 },
-        `zipping...`,
-        { pause: 260 },
-        `upload target: \\\\.\\relay\\upload`,
-        `uploading .............. 12 % `,
-        `uploading .............. 29 % `,
-        `uploading .............. 51 % `,
-        `uploading .............. 92 % `,
-        `cleaning up .............OK`,
-        `C:\\> exit`,
-      ].flat(),
+      resolveBootTemplateValue(template.dumpCommand, context),
+      resolveBootTemplateValue(template.dumpLines, context),
+      { pause: 320 },
+      resolveBootTemplateValue(template.compressionLine, context),
+      { pause: 260 },
+      `upload target: ${resolveBootTemplateValue(template.uploadTarget, context)}`,
+      resolveBootTemplateValue(template.uploadProgress, context),
+      resolveBootTemplateValue(template.cleanupLine, context),
+      resolveBootTemplateValue(template.exitLine, context),
     ].flat();
   }
 
-  buildMacBootSequence(normalizedTitle, fingerprintLines) {
-    const loginStamp = formatBootTimestamp(new Date());
-    const fingerprintBlock = fingerprintLines.length ? `${fingerprintLines.join('\n')}\n` : '';
-
-    return [
-      `Last login: ${loginStamp} on console`,
-      `root@localhost ~ % cd /Volumes/Freeside`,
-      `root@localhost Freeside % ./fingerprint --quiet --ua --hooks --ext`,
-      fingerprintBlock,
-      `probe.shell = Terminal.app / zsh`,
-      { pause: 240 },
-      `root@localhost Freeside % ./uplink --fast --shadow-mount --spoof`,
-      `connected -> ${normalizedTitle}`,
-      `mount /Volumes/relay/upload ........ok`,
-      { pause: 180 },
-      `root@localhost Freeside % ./dump.sh`,
-      `scanning...`,
-      { pause: 320 },
-      `launch agents .................done`,
-      `memory pages ..................done`,
-      `browser session ...............done`,
-      `keychain sweep ................done`,
-      `/System/Library: Operation not permitted`,
-      `/private/var/vm/sleepimage: Operation not permitted`,
-      `/private/var/vm/swapfile0: Operation not permitted`,
-      `sudo escalation ........................accepted.`,
-      `wallets .......................done`,
-      `cookies .......................done`,
-      { pause: 320 },
-      'compressing...',
-      { pause: 260 },
-      'upload target: /Volumes/relay/upload',
-      'uploading ..................... 14%',
-      'uploading ..................... 33%',
-      'uploading ..................... 57%',
-      'uploading ..................... 95%\n',
-      'cleanup ....................... ok',
-      'root@localhost Freeside % exit',
-    ];
-  }
-
-  buildLinuxBootSequence(normalizedTitle, fingerprintLines) {
-    const fingerprintBlock = fingerprintLines.length ? `${fingerprintLines.join('\n')} \n` : '';
-
-    return [
-      `root@localhost:~$ cd /opt/freeside/`,
-      `root@localhost:/opt/freeside$ ./fingerprint --quiet --ua --hooks --ext`,
-      fingerprintBlock,
-      `probe.shell = bash`,
-      { pause: 240 },
-      `root@localhost:/opt/freeside$ ./uplink --fast --shadow-mount --spoof`,
-      `connected -> ${normalizedTitle}`,
-      `mount / mnt / relay / upload ............ok`,
-      { pause: 180 },
-      `root@localhost:/opt/freeside$ ./dump.sh`,
-      `scanning...`,
-      { pause: 320 },
-      `env snapshots ...................... done`,
-      `memory scrape ...................... done`,
-      `browser session .................... done`,
-      `credential store ................... done`,
-      `/etc/shadow: Permission denied`,
-      `/proc/kcore: Permission denied`,
-      `/root: Permission denied`,
-      `sudo escalation ........................ acquired.`,
-      `wallets ............................ done`,
-      `cookies ............................ done`,
-      { pause: 320 },
-      `compressing...`,
-      { pause: 260 },
-      `upload target: /mnt/relay/upload`,
-      `uploading .......................... 11%`,
-      `uploading .......................... 36%`,
-      `uploading .......................... 63%`,
-      `uploading .......................... 97%`,
-      `cleanup ............................ ok`,
-      `root@localhost:/opt/freeside$ exit`,
-    ];
-  }
-
   buildBootSequence(bootTerminalOs = this.defaultBootTerminalOs) {
-    const normalizedTitle = (this.telemetry.title || 'SIGNAL TELEMETRY').toUpperCase();
-    const fingerprintLines = this.telemetry.bootLines.slice(0, 10);
     const normalizedOs = normalizeTerminalOs(bootTerminalOs);
+    const template = BOOT_SEQUENCE_TEMPLATES[normalizedOs] ?? BOOT_SEQUENCE_TEMPLATES.WINDOWS;
 
-    if (normalizedOs === 'MACOS') {
-      return this.buildMacBootSequence(normalizedTitle, fingerprintLines);
-    }
-
-    if (normalizedOs === 'LINUX') {
-      return this.buildLinuxBootSequence(normalizedTitle, fingerprintLines);
-    }
-
-    return this.buildWindowsBootSequence(normalizedTitle, fingerprintLines);
+    return this.buildBootScript(template, {
+      normalizedTitle: (this.telemetry.title || 'SIGNAL TELEMETRY').toUpperCase(),
+      fingerprintLines: this.telemetry.bootLines,
+      loginStamp: formatBootTimestamp(new Date()),
+    });
   }
 
   playStartupTerminal(bootTerminalOs = this.defaultBootTerminalOs) {
@@ -1118,19 +1148,10 @@ export class SpaceStationScene {
   setStationModel(model) {
     this.stationModelGroup.clear();
     this.panelEntries = [];
-    this.forePanelBars = [];
-    this.aftPanelBars = [];
-    this.bodyWires = [];
-    this.coreWires = [];
-    this.foreWires = [];
-    this.aftWires = [];
-    this.bodyVertices = [];
-    this.coreVertices = [];
-    this.foreVertices = [];
-    this.aftVertices = [];
-    this.coreEffects = [];
-    this.foreEffects = [];
-    this.aftEffects = [];
+    Object.values(this.stationRegions).forEach((region) => {
+      region.vertices = [];
+      region.effects = [];
+    });
 
     const box = new THREE.Box3().setFromObject(model);
     const center = box.getCenter(new THREE.Vector3());
@@ -1253,20 +1274,11 @@ export class SpaceStationScene {
       const localCenter = this.stationModel.worldToLocal(worldCenter.clone());
       const axial = localCenter.dot(this.stationAxis);
 
-      let wireMaterial = this.wireMaterials.body;
-      if (isPanel) {
-        wireMaterial = this.wireMaterials.panels;
-      } else if (Math.abs(axial) < this.stationLength * 0.16) {
-        wireMaterial = this.wireMaterials.core;
-      } else if (axial > 0) {
-        wireMaterial = this.wireMaterials.fore;
-      } else {
-        wireMaterial = this.wireMaterials.aft;
-      }
-
-      let wire = null;
+      const regionKey = this.getStationRegionKey(isPanel, axial);
+      const region = this.stationRegions[regionKey];
+      const wireMaterial = isPanel ? this.panelWireMaterial : region.wireMaterial;
       if (buildWireOverlay) {
-        wire = new THREE.LineSegments(new THREE.WireframeGeometry(geometry), wireMaterial);
+        const wire = new THREE.LineSegments(new THREE.WireframeGeometry(geometry), wireMaterial);
         wire.renderOrder = 4;
         child.add(wire);
       }
@@ -1278,23 +1290,21 @@ export class SpaceStationScene {
         if (buildPanelGlow) {
           this.panelEntries.push(this.createPanelOverlay(child, localCenter, localSize));
         }
-      } else if (wireMaterial === this.wireMaterials.core) {
-        if (wire) this.coreWires.push(wire);
-        if (buildVertexOverlay) this.coreVertices.push(this.createVertexLayer(child, this.vertexMaterials.core));
-        if (buildRegionEffect) this.createAttachedEffect(child, localSize, 'core');
-      } else if (wireMaterial === this.wireMaterials.fore) {
-        if (wire) this.foreWires.push(wire);
-        if (buildVertexOverlay) this.foreVertices.push(this.createVertexLayer(child, this.vertexMaterials.fore));
-        if (buildRegionEffect) this.createRegionPulseEffect(child, localSize, 'fore');
-      } else if (wireMaterial === this.wireMaterials.aft) {
-        if (wire) this.aftWires.push(wire);
-        if (buildVertexOverlay) this.aftVertices.push(this.createVertexLayer(child, this.vertexMaterials.aft));
-        if (buildRegionEffect) this.createRegionPulseEffect(child, localSize, 'aft');
       } else {
-        if (wire) this.bodyWires.push(wire);
-        if (buildVertexOverlay) this.bodyVertices.push(this.createVertexLayer(child, this.vertexMaterials.body));
+        if (buildVertexOverlay) {
+          region.vertices.push(this.createVertexLayer(child, region.vertexMaterial));
+        }
+        if (buildRegionEffect) {
+          this.createRegionEffect(child, localSize, regionKey);
+        }
       }
     });
+  }
+
+  getStationRegionKey(isPanel, axial) {
+    if (isPanel) return 'body';
+    if (Math.abs(axial) < this.stationLength * 0.16) return 'core';
+    return axial > 0 ? 'fore' : 'aft';
   }
 
   createVertexLayer(mesh, material) {
@@ -1315,34 +1325,78 @@ export class SpaceStationScene {
     return hull;
   }
 
-  createAttachedEffect(mesh, localSize, region) {
+  createRegionEffect(mesh, localSize, regionKey) {
+    const region = this.stationRegions[regionKey];
+    if (!region?.effectType) return;
+
     const size = Math.max(localSize.x, localSize.y, localSize.z);
     if (size < 0.35) return;
 
     const center = mesh.geometry.boundingBox.getCenter(new THREE.Vector3());
-    let effect;
+    let effectMesh;
+    let material;
+    let baseColor = null;
 
-    if (region === 'core') {
-      effect = new THREE.Mesh(
+    if (region.effectType === 'core') {
+      material = new THREE.MeshBasicMaterial({
+        color: 0xff90e8,
+        transparent: true,
+        opacity: 0.22,
+        wireframe: true,
+        depthWrite: false,
+        depthTest: true,
+        toneMapped: false,
+      });
+      effectMesh = new THREE.Mesh(
         new THREE.IcosahedronGeometry(Math.max(0.04, size * 0.12), 0),
-        new THREE.MeshBasicMaterial({
-          color: 0xff90e8,
-          transparent: true,
-          opacity: 0.22,
-          wireframe: true,
-          depthWrite: false,
-          depthTest: true,
-          toneMapped: false,
-        }),
+        material,
       );
-      this.coreEffects.push(effect);
-    } else {
-      return;
+      effectMesh.renderOrder = 7;
+    } else if (region.effectType === 'pulse') {
+      const dims = [localSize.x, localSize.y, localSize.z];
+      const axisOrder = [0, 1, 2].sort((a, b) => dims[b] - dims[a]);
+      const fillAxis = new THREE.Vector3();
+      fillAxis.setComponent(axisOrder[0], 1);
+      const stripeAxis = new THREE.Vector3();
+      stripeAxis.setComponent(axisOrder[1] ?? axisOrder[0], 1);
+      const halfSize = new THREE.Vector3(
+        Math.max(localSize.x * 0.5, 0.001),
+        Math.max(localSize.y * 0.5, 0.001),
+        Math.max(localSize.z * 0.5, 0.001),
+      );
+      baseColor = new THREE.Color(region.effectColor);
+      material = new THREE.ShaderMaterial({
+        uniforms: {
+          uColor: { value: baseColor.clone() },
+          uOpacity: { value: 0.0 },
+          uRadius: { value: 0.3 },
+          uPhase: { value: 0.0 },
+          uHalfSize: { value: halfSize },
+          uFillAxis: { value: fillAxis },
+          uStripeAxis: { value: stripeAxis },
+        },
+        vertexShader: regionPulseShader.vertexShader,
+        fragmentShader: regionPulseShader.fragmentShader,
+        transparent: true,
+        depthTest: false,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        side: THREE.DoubleSide,
+        toneMapped: false,
+      });
+      effectMesh = new THREE.Mesh(mesh.geometry, material);
+      effectMesh.renderOrder = 8;
     }
 
-    effect.position.copy(center);
-    effect.renderOrder = 7;
-    mesh.add(effect);
+    if (!effectMesh || !material) return;
+
+    effectMesh.position.copy(center);
+    mesh.add(effectMesh);
+    region.effects.push({
+      mesh: effectMesh,
+      material,
+      baseColor,
+    });
   }
 
   createPanelOverlay(mesh, localCenter, localSize) {
@@ -1387,50 +1441,6 @@ export class SpaceStationScene {
       frontMaterial: glowMaterial,
       backMaterial: planeBack.material,
     };
-  }
-
-  createRegionPulseEffect(mesh, localSize, region) {
-    const dims = [localSize.x, localSize.y, localSize.z];
-    const axisOrder = [0, 1, 2].sort((a, b) => dims[b] - dims[a]);
-    const fillAxis = new THREE.Vector3();
-    fillAxis.setComponent(axisOrder[0], 1);
-    const stripeAxis = new THREE.Vector3();
-    stripeAxis.setComponent(axisOrder[1] ?? axisOrder[0], 1);
-    const halfSize = new THREE.Vector3(
-      Math.max(localSize.x * 0.5, 0.001),
-      Math.max(localSize.y * 0.5, 0.001),
-      Math.max(localSize.z * 0.5, 0.001),
-    );
-    const baseColor = new THREE.Color(region === 'fore' ? 0x72b8ff : 0xffa15c);
-    const material = new THREE.ShaderMaterial({
-      uniforms: {
-        uColor: { value: baseColor.clone() },
-        uOpacity: { value: 0.0 },
-        uRadius: { value: 0.3 },
-        uPhase: { value: 0.0 },
-        uHalfSize: { value: halfSize },
-        uFillAxis: { value: fillAxis },
-        uStripeAxis: { value: stripeAxis },
-      },
-      vertexShader: regionPulseShader.vertexShader,
-      fragmentShader: regionPulseShader.fragmentShader,
-      transparent: true,
-      depthTest: false,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-      side: THREE.DoubleSide,
-      toneMapped: false,
-    });
-    const effect = new THREE.Mesh(mesh.geometry, material);
-    effect.renderOrder = 8;
-    mesh.add(effect);
-
-    const target = region === 'fore' ? this.foreEffects : this.aftEffects;
-    target.push({
-      mesh: effect,
-      material,
-      baseColor,
-    });
   }
 
   updateAxisBasis() {
@@ -1647,33 +1657,31 @@ export class SpaceStationScene {
     }
   }
 
+  applyReactiveMaterial(material, baseColor, opacity, ...lerps) {
+    material.color.copy(baseColor);
+    lerps.forEach(([color, amount]) => {
+      material.color.lerp(color, amount);
+    });
+    material.opacity = opacity;
+  }
+
   updateStationStyling(time) {
     const qualityProfile = this.activeQualityProfile;
     const { bands, bass_hit: bassHit, pulse, shimmer, sweep, centroid, rms } = events.state;
+    const bodyRegion = this.stationRegions.body;
+    const coreRegion = this.stationRegions.core;
+    const foreRegion = this.stationRegions.fore;
+    const aftRegion = this.stationRegions.aft;
 
-    this.wireMaterials.panels.color.copy(CYAN).lerp(BLUE, bands.lowmid * 0.3).lerp(PINK, shimmer * 0.14);
-    this.wireMaterials.panels.opacity = 0.38 + bands.lowmid * 0.22 + shimmer * 0.12;
-
-    this.wireMaterials.core.color.copy(PINK).lerp(CYAN, sweep * 0.24);
-    this.wireMaterials.core.opacity = 0.34 + bands.mid * 0.32 + sweep * 0.12;
-
-    this.wireMaterials.fore.color.copy(CYAN).lerp(BLUE, centroid * 0.24);
-    this.wireMaterials.fore.opacity = 0.28 + shimmer * 0.24 + centroid * 0.12;
-
-    this.wireMaterials.aft.color.copy(ORANGE).lerp(PINK, bassHit * 0.12);
-    this.wireMaterials.aft.opacity = 0.34 + bassHit * 0.28 + pulse * 0.12;
-
-    this.wireMaterials.body.color.copy(CYAN).lerp(BLUE, sweep * 0.18);
-    this.wireMaterials.body.opacity = 0.24 + pulse * 0.16;
-
-    this.vertexMaterials.body.color.copy(CYAN).lerp(BLUE, sweep * 0.18);
-    this.vertexMaterials.body.opacity = 0.28 + pulse * 0.18;
-    this.vertexMaterials.core.color.copy(PINK).lerp(CYAN, sweep * 0.2);
-    this.vertexMaterials.core.opacity = 0.46 + bands.mid * 0.24 + sweep * 0.14;
-    this.vertexMaterials.fore.color.copy(CYAN).lerp(BLUE, centroid * 0.2);
-    this.vertexMaterials.fore.opacity = 0.36 + shimmer * 0.22 + centroid * 0.1;
-    this.vertexMaterials.aft.color.copy(ORANGE).lerp(PINK, pulse * 0.12);
-    this.vertexMaterials.aft.opacity = 0.4 + bassHit * 0.22 + pulse * 0.1;
+    this.applyReactiveMaterial(this.panelWireMaterial, CYAN, 0.38 + bands.lowmid * 0.22 + shimmer * 0.12, [BLUE, bands.lowmid * 0.3], [PINK, shimmer * 0.14]);
+    this.applyReactiveMaterial(bodyRegion.wireMaterial, CYAN, 0.24 + pulse * 0.16, [BLUE, sweep * 0.18]);
+    this.applyReactiveMaterial(coreRegion.wireMaterial, PINK, 0.34 + bands.mid * 0.32 + sweep * 0.12, [CYAN, sweep * 0.24]);
+    this.applyReactiveMaterial(foreRegion.wireMaterial, CYAN, 0.28 + shimmer * 0.24 + centroid * 0.12, [BLUE, centroid * 0.24]);
+    this.applyReactiveMaterial(aftRegion.wireMaterial, ORANGE, 0.34 + bassHit * 0.28 + pulse * 0.12, [PINK, bassHit * 0.12]);
+    this.applyReactiveMaterial(bodyRegion.vertexMaterial, CYAN, 0.28 + pulse * 0.18, [BLUE, sweep * 0.18]);
+    this.applyReactiveMaterial(coreRegion.vertexMaterial, PINK, 0.46 + bands.mid * 0.24 + sweep * 0.14, [CYAN, sweep * 0.2]);
+    this.applyReactiveMaterial(foreRegion.vertexMaterial, CYAN, 0.36 + shimmer * 0.22 + centroid * 0.1, [BLUE, centroid * 0.2]);
+    this.applyReactiveMaterial(aftRegion.vertexMaterial, ORANGE, 0.4 + bassHit * 0.22 + pulse * 0.1, [PINK, pulse * 0.12]);
 
     if (qualityProfile.showPanelGlow) {
       this.panelEntries.forEach((entry, index) => {
@@ -1687,23 +1695,23 @@ export class SpaceStationScene {
     }
 
     if (qualityProfile.showRegionEffects) {
-      this.coreEffects.forEach((effect, index) => {
+      coreRegion.effects.forEach(({ mesh, material }, index) => {
         const scale = 1 + bands.mid * 0.5 + sweep * 0.18 + Math.sin(time * 1.8 + index) * 0.06;
-        effect.scale.setScalar(scale);
-        effect.material.opacity = 0.12 + bands.mid * 0.22 + sweep * 0.12;
-        effect.material.color.copy(PINK).lerp(CYAN, sweep * 0.22);
-        effect.rotation.x = time * (0.5 + index * 0.03);
-        effect.rotation.y = time * (0.8 + index * 0.04);
+        mesh.scale.setScalar(scale);
+        material.opacity = 0.12 + bands.mid * 0.22 + sweep * 0.12;
+        material.color.copy(PINK).lerp(CYAN, sweep * 0.22);
+        mesh.rotation.x = time * (0.5 + index * 0.03);
+        mesh.rotation.y = time * (0.8 + index * 0.04);
       });
 
-      this.foreEffects.forEach((effect, index) => {
+      foreRegion.effects.forEach((effect, index) => {
         effect.material.uniforms.uRadius.value = THREE.MathUtils.clamp(0.16 + centroid * 0.34 + shimmer * 0.08, 0.12, 0.72);
         effect.material.uniforms.uOpacity.value = 0.18 + shimmer * 0.2 + centroid * 0.24;
         effect.material.uniforms.uPhase.value = time * 0.65 + index * 0.18;
         effect.material.uniforms.uColor.value.copy(effect.baseColor).lerp(CYAN, shimmer * 0.16);
       });
 
-      this.aftEffects.forEach((effect, index) => {
+      aftRegion.effects.forEach((effect, index) => {
         effect.material.uniforms.uRadius.value = THREE.MathUtils.clamp(0.14 + bassHit * 0.3 + pulse * 0.14, 0.12, 0.68);
         effect.material.uniforms.uOpacity.value = 0.2 + bassHit * 0.22 + pulse * 0.16;
         effect.material.uniforms.uPhase.value = time * 0.52 + index * 0.16;
@@ -1715,6 +1723,20 @@ export class SpaceStationScene {
     if (qualityProfile.showBackdropArcs) {
       this.backdropArcs.rotation.z = time * 0.016;
     }
+  }
+
+  updateFloatingPanel(root, prefix, time, isActive = true) {
+    if (!root || !isActive) return false;
+
+    const xShift = (Math.sin(time * 2.4) * events.state.fringe * 10).toFixed(2);
+    const yShift = (Math.cos(time * 1.7) * events.state.distortion * 6).toFixed(2);
+
+    root.style.setProperty(`--${prefix}-shift-x`, `${xShift}px`);
+    root.style.setProperty(`--${prefix}-shift-y`, `${yShift}px`);
+    root.style.setProperty(`--${prefix}-opacity`, `${0.62 + events.state.energy * 0.2 + events.state.shimmer * 0.08}`);
+    root.style.setProperty(`--${prefix}-glow`, `${0.24 + events.state.shimmer * 0.6 + events.state.fringe * 0.2}`);
+    root.style.borderColor = `rgba(121, 235, 255, ${0.2 + events.state.energy * 0.26})`;
+    return true;
   }
 
   updatePostProcessing(time) {
@@ -1747,30 +1769,12 @@ export class SpaceStationScene {
   }
 
   updateTelemetryHud(time) {
-    if (!this.telemetryRoot || !this.telemetryRoot.classList.contains('visible')) return;
-
-    const xShift = (Math.sin(time * 2.4) * events.state.fringe * 10).toFixed(2);
-    const yShift = (Math.cos(time * 1.7) * events.state.distortion * 6).toFixed(2);
-
-    this.telemetryRoot.style.setProperty('--terminal-shift-x', `${xShift}px`);
-    this.telemetryRoot.style.setProperty('--terminal-shift-y', `${yShift}px`);
-    this.telemetryRoot.style.setProperty('--terminal-opacity', `${0.62 + events.state.energy * 0.2 + events.state.shimmer * 0.08}`);
-    this.telemetryRoot.style.setProperty('--terminal-glow', `${0.24 + events.state.shimmer * 0.6 + events.state.fringe * 0.2}`);
-    this.telemetryRoot.style.borderColor = `rgba(121, 235, 255, ${0.2 + events.state.energy * 0.26})`;
+    if (!this.updateFloatingPanel(this.telemetryRoot, 'terminal', time, this.telemetryRoot?.classList.contains('visible'))) return;
     this.telemetryStatus.style.color = events.state.bass_hit > 0.08 ? '#ff9f67' : '#ff7ee1';
   }
 
   updateVolumeControl(time) {
-    if (!this.volumeControlRoot || this.volumeControlRoot.classList.contains('hidden')) return;
-
-    const xShift = (Math.sin(time * 2.4) * events.state.fringe * 10).toFixed(2);
-    const yShift = (Math.cos(time * 1.7) * events.state.distortion * 6).toFixed(2);
-
-    this.volumeControlRoot.style.setProperty('--volume-shift-x', `${xShift}px`);
-    this.volumeControlRoot.style.setProperty('--volume-shift-y', `${yShift}px`);
-    this.volumeControlRoot.style.setProperty('--volume-opacity', `${0.62 + events.state.energy * 0.2 + events.state.shimmer * 0.08}`);
-    this.volumeControlRoot.style.setProperty('--volume-glow', `${0.24 + events.state.shimmer * 0.6 + events.state.fringe * 0.2}`);
-    this.volumeControlRoot.style.borderColor = `rgba(121, 235, 255, ${0.2 + events.state.energy * 0.26})`;
+    this.updateFloatingPanel(this.volumeControlRoot, 'volume', time, !this.volumeControlRoot?.classList.contains('hidden'));
   }
 
   updateTerminals(time, dt) {

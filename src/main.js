@@ -207,37 +207,49 @@ function sanitizeTerminalValue(value, maxLength = 54) {
   return normalized.slice(0, maxLength).toUpperCase();
 }
 
+function findRuntimeLabel(matchers, context, fallback) {
+  const match = matchers.find(([, matches]) => matches(context));
+  return match ? match[0] : fallback;
+}
+
+const BROWSER_MATCHERS = [
+  ['BRAVE', ({ brandLabel }) => brandLabel.includes('Brave') || navigator.brave],
+  ['EDGE', ({ userAgent, brandLabel }) => /Edg\//.test(userAgent) || brandLabel.includes('Microsoft Edge')],
+  ['OPERA', ({ userAgent, brandLabel }) => /OPR\//.test(userAgent) || brandLabel.includes('Opera')],
+  ['FIREFOX', ({ userAgent, brandLabel }) => /Firefox\//.test(userAgent) || brandLabel.includes('Firefox')],
+  ['CHROME', ({ userAgent, brandLabel }) => /Chrome\//.test(userAgent) || brandLabel.includes('Chromium') || brandLabel.includes('Google Chrome')],
+  ['SAFARI', ({ userAgent }) => /Safari\//.test(userAgent)],
+];
+
+const OPERATING_SYSTEM_MATCHERS = [
+  ['WINDOWS', ({ platform }) => /Windows/i.test(platform)],
+  ['ANDROID', ({ platform }) => /Android/i.test(platform)],
+  ['IOS', ({ platform }) => /(iPhone|iPad|iPod)/i.test(platform)],
+  ['MACOS', ({ platform }) => /Mac/i.test(platform)],
+  ['LINUX', ({ platform }) => /Linux/i.test(platform)],
+];
+
+const ENGINE_MATCHERS = [
+  ['GECKO', ({ userAgent }) => /Firefox\//.test(userAgent)],
+  ['BLINK', ({ userAgent }) => /AppleWebKit\//.test(userAgent) && /Chrome\//.test(userAgent)],
+  ['WEBKIT', ({ userAgent }) => /AppleWebKit\//.test(userAgent)],
+];
+
 function detectBrowserName(userAgent, brands) {
-  const brandLabel = brands.join(' ');
-
-  if (brandLabel.includes('Brave') || navigator.brave) return 'BRAVE';
-  if (/Edg\//.test(userAgent) || brandLabel.includes('Microsoft Edge')) return 'EDGE';
-  if (/OPR\//.test(userAgent) || brandLabel.includes('Opera')) return 'OPERA';
-  if (/Firefox\//.test(userAgent) || brandLabel.includes('Firefox')) return 'FIREFOX';
-  if (/Chrome\//.test(userAgent) || brandLabel.includes('Chromium') || brandLabel.includes('Google Chrome')) return 'CHROME';
-  if (/Safari\//.test(userAgent)) return 'SAFARI';
-
-  return 'UNKNOWN BROWSER';
+  return findRuntimeLabel(BROWSER_MATCHERS, {
+    userAgent,
+    brandLabel: brands.join(' '),
+  }, 'UNKNOWN BROWSER');
 }
 
 function detectOperatingSystem(userAgent, platformHint) {
-  const platform = `${platformHint || ''} ${userAgent}`;
-
-  if (/Windows/i.test(platform)) return 'WINDOWS';
-  if (/Android/i.test(platform)) return 'ANDROID';
-  if (/(iPhone|iPad|iPod)/i.test(platform)) return 'IOS';
-  if (/Mac/i.test(platform)) return 'MACOS';
-  if (/Linux/i.test(platform)) return 'LINUX';
-
-  return 'UNKNOWN OS';
+  return findRuntimeLabel(OPERATING_SYSTEM_MATCHERS, {
+    platform: `${platformHint || ''} ${userAgent}`,
+  }, 'UNKNOWN OS');
 }
 
 function detectEngineName(userAgent) {
-  if (/Firefox\//.test(userAgent)) return 'GECKO';
-  if (/AppleWebKit\//.test(userAgent) && /Chrome\//.test(userAgent)) return 'BLINK';
-  if (/AppleWebKit\//.test(userAgent)) return 'WEBKIT';
-
-  return 'UNKNOWN ENGINE';
+  return findRuntimeLabel(ENGINE_MATCHERS, { userAgent }, 'UNKNOWN ENGINE');
 }
 
 function collectExtensionSignals() {

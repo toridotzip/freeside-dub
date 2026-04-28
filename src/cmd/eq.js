@@ -1,6 +1,6 @@
 import { audio } from '../audio.js';
 import { events } from '../events.js';
-import { escapeTerminalHtml, renderTerminalAppHtml, sampleTerminalSpectrumBands } from './app-helpers.js';
+import { escapeTerminalHtml, renderTerminalAppHtml, sampleTerminalSpectrumBands, startTerminalApp } from './app-helpers.js';
 
 const EQ_TERMINAL_LABELS = ['32', '64', '125', '250', '500', '1k', '2k', '4k', '6k', '8k', '12k', '16k'];
 
@@ -64,13 +64,12 @@ export default {
   run({ terminal, parsed }) {
     const colorized = !parsed.flags.has('--no-color');
 
-    terminal.startAppMode({
+    return startTerminalApp(terminal, {
       name: './eq',
       title: 'FREESIDE EQ-12',
       frameInterval: 1 / 20,
       renderFrame: () => buildEqMeterFrame({ colorized }),
-      onExit: () => ['Exited ./eq.', ''],
+      exitMessage: 'Exited ./eq.',
     });
-    return null;
   },
 };

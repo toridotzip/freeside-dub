@@ -1,5 +1,5 @@
 import { events } from '../events.js';
-import { escapeTerminalHtml, renderTerminalAppHtml } from './app-helpers.js';
+import { escapeTerminalHtml, renderTerminalAppHtml, startTerminalApp } from './app-helpers.js';
 
 const CMATRIX_CHARSET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#$%&*+=-<>[]{}';
 
@@ -66,7 +66,7 @@ function buildMatrixFrame(state) {
 export default {
   name: './cmatrix',
   run({ terminal }) {
-    terminal.startAppMode({
+    return startTerminalApp(terminal, {
       name: './cmatrix',
       title: 'FREESIDE CMATRIX',
       frameInterval: 1 / 18,
@@ -75,8 +75,7 @@ export default {
         state.dt = dt;
         return buildMatrixFrame(state);
       },
-      onExit: () => ['Exited ./cmatrix.', ''],
+      exitMessage: 'Exited ./cmatrix.',
     });
-    return null;
   },
 };
