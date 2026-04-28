@@ -189,7 +189,7 @@ h1 {
   position: relative;
   display: grid;
   place-items: center;
-  min-height: 9.5rem;
+  min-height: 7.5rem;
   margin-top: 0.35rem;
   isolation: isolate;
 }
@@ -213,6 +213,8 @@ h1 {
   line-height: 1;
   letter-spacing: 0.6rem;
   color: #ff5757;
+  text-indent: .8rem;
+  text-align: center;
   text-shadow:
     0 0 14px rgba(255, 68, 68, 0.58),
     0 0 36px rgba(255, 36, 36, 0.34);
@@ -245,7 +247,7 @@ h1 {
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
-  margin-top: 1.8rem;
+  margin-top: 1.2rem;
   color: var(--text-dim);
   font-family: 'Share Tech Mono', monospace;
   font-size: 0.86rem;
@@ -260,7 +262,7 @@ h1 {
 
 button {
   display: block;
-  margin: 2rem auto 0;
+  margin: 1.7rem auto 0;
   padding: 1rem 2rem;
   border: 1px solid rgba(121, 235, 255, 0.6);
   background: linear-gradient(135deg, rgba(121, 235, 255, 0.08), rgba(255, 139, 232, 0.12));
@@ -310,8 +312,9 @@ button:focus-visible,
   color: var(--accent-warm);
   font-family: 'Share Tech Mono', monospace;
   font-size: 0.82rem;
-  letter-spacing: 0.12rem;
+  letter-spacing: 0.129rem;
   text-transform: uppercase;
+  text-align: center;
 }
 
 .runtime-terminal,
