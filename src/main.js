@@ -295,11 +295,7 @@ function buildRuntimeProfile() {
     navigator.deviceMemory ? `${navigator.deviceMemory}GB HINT` : 'MEM ?',
   ].join(' / ');
   const inputSummary = navigator.maxTouchPoints ? `${navigator.maxTouchPoints} TOUCH POINTS` : 'MOUSE BIAS';
-  const dntValue = navigator.doNotTrack === '1'
-    ? 'ON'
-    : navigator.doNotTrack === '0'
-      ? 'OFF'
-      : 'UNSET';
+  const dntValue = { '1': 'ON', '0': 'OFF' }[navigator.doNotTrack] ?? 'UNSET';
   const brandSummary = brands.length ? brands.join(' | ') : 'UA-CH WITHHELD';
   const bootLineSpecs = [
     ['Probe   client shell ......... ', `${browser} / ${operatingSystem}`, 28],

@@ -270,15 +270,18 @@ export class TerminalWindow {
       this.frame.src = variant.frameSrc;
     }
 
-    this.root.style.setProperty('--system-terminal-aspect-ratio', `${variant.imageWidth} / ${variant.imageHeight}`);
-    this.root.style.setProperty('--system-terminal-content-left', `${(variant.offsetX / variant.imageWidth) * 100}%`);
-    this.root.style.setProperty('--system-terminal-content-top', `${(variant.offsetY / variant.imageHeight) * 100}%`);
-    this.root.style.setProperty('--system-terminal-content-right', `${(variant.insetRight / variant.imageWidth) * 100}%`);
-    this.root.style.setProperty('--system-terminal-content-bottom', `${(variant.insetBottom / variant.imageHeight) * 100}%`);
-    this.root.style.setProperty('--system-terminal-font-family', variant.fontFamily);
-    this.root.style.setProperty('--system-terminal-color', variant.textColor);
-    this.root.style.setProperty('--system-terminal-font-size', variant.fontSize);
-    this.root.style.setProperty('--system-terminal-line-height', variant.lineHeight);
+    const { imageWidth: w, imageHeight: h, offsetX, offsetY, insetRight, insetBottom, fontFamily, textColor, fontSize, lineHeight } = variant;
+    for (const [prop, val] of [
+      ['--system-terminal-aspect-ratio', `${w} / ${h}`],
+      ['--system-terminal-content-left', `${(offsetX / w) * 100}%`],
+      ['--system-terminal-content-top', `${(offsetY / h) * 100}%`],
+      ['--system-terminal-content-right', `${(insetRight / w) * 100}%`],
+      ['--system-terminal-content-bottom', `${(insetBottom / h) * 100}%`],
+      ['--system-terminal-font-family', fontFamily],
+      ['--system-terminal-color', textColor],
+      ['--system-terminal-font-size', fontSize],
+      ['--system-terminal-line-height', lineHeight],
+    ]) this.root.style.setProperty(prop, val);
 
     if (this.cursor) {
       this.cursor.textContent = TERMINAL_CURSOR_GLYPHS[this.os];

@@ -262,17 +262,15 @@ export class SpaceStationScene {
     this.keyLight.position.set(12, 14, 14);
     this.scene.add(this.keyLight);
 
-    this.rimLight = new THREE.PointLight(0x64dcff, 12, 120);
-    this.rimLight.position.set(-10, 7, 16);
-    this.scene.add(this.rimLight);
-
-    this.warmLight = new THREE.PointLight(0xff955f, 8, 100);
-    this.warmLight.position.set(-8, -4, -10);
-    this.scene.add(this.warmLight);
-
-    this.fillLight = new THREE.PointLight(0x6d8eff, 7, 90);
-    this.fillLight.position.set(6, 3, -8);
-    this.scene.add(this.fillLight);
+    for (const [name, color, intensity, distance, pos] of [
+      ['rimLight', 0x64dcff, 12, 120, [-10, 7, 16]],
+      ['warmLight', 0xff955f, 8, 100, [-8, -4, -10]],
+      ['fillLight', 0x6d8eff, 7, 90, [6, 3, -8]],
+    ]) {
+      const light = new THREE.PointLight(color, intensity, distance);
+      light.position.set(...pos);
+      this.scene.add(this[name] = light);
+    }
   }
 
   createBackground() {
@@ -289,10 +287,7 @@ export class SpaceStationScene {
       positions[i * 3 + 1] = radius * Math.cos(phi);
       positions[i * 3 + 2] = radius * Math.sin(phi) * Math.sin(theta);
 
-      const color = new THREE.Color().setHSL(0.56 + Math.random() * 0.08, 0.42, 0.72 + Math.random() * 0.16);
-      colors[i * 3] = color.r;
-      colors[i * 3 + 1] = color.g;
-      colors[i * 3 + 2] = color.b;
+      new THREE.Color().setHSL(0.56 + Math.random() * 0.08, 0.42, 0.72 + Math.random() * 0.16).toArray(colors, i * 3);
     }
 
     const starGeometry = new THREE.BufferGeometry();

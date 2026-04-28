@@ -396,11 +396,8 @@ const terminalRuntimeMethods = {
   },
 
   resetFreecamMovement() {
-    this.freecam.moveState.forward = false;
-    this.freecam.moveState.backward = false;
-    this.freecam.moveState.left = false;
-    this.freecam.moveState.right = false;
-    this.freecam.moveState.boost = false;
+    const s = this.freecam.moveState;
+    s.forward = s.backward = s.left = s.right = s.boost = false;
   },
 
   disableFreecam(options = {}) {
@@ -426,31 +423,20 @@ const terminalRuntimeMethods = {
   },
 
   buildBootScript(template, context) {
+    const r = (key) => resolveBootTemplateValue(template[key], context);
     const fingerprintLines = context.fingerprintLines.slice(0, 10);
     const fingerprintBlock = fingerprintLines.length
       ? `${fingerprintLines.join('\n')}${template.fingerprintSuffix ?? '\n'}`
       : '';
 
     return [
-      resolveBootTemplateValue(template.intro, context),
-      resolveBootTemplateValue(template.beforeFingerprint, context),
-      resolveBootTemplateValue(template.fingerprintCommand, context),
-      fingerprintBlock,
-      resolveBootTemplateValue(template.probeLine, context),
-      { pause: resolveBootTemplateValue(template.probePause, context) ?? 240 },
-      resolveBootTemplateValue(template.uplinkCommand, context),
-      resolveBootTemplateValue(template.connectedLine, context),
-      resolveBootTemplateValue(template.mountLine, context),
-      { pause: 180 },
-      resolveBootTemplateValue(template.dumpCommand, context),
-      resolveBootTemplateValue(template.dumpLines, context),
-      { pause: 320 },
-      resolveBootTemplateValue(template.compressionLine, context),
-      { pause: 260 },
-      `upload target: ${resolveBootTemplateValue(template.uploadTarget, context)}`,
-      resolveBootTemplateValue(template.uploadProgress, context),
-      resolveBootTemplateValue(template.cleanupLine, context),
-      resolveBootTemplateValue(template.exitLine, context),
+      r('intro'), r('beforeFingerprint'), r('fingerprintCommand'), fingerprintBlock,
+      r('probeLine'), { pause: r('probePause') ?? 240 },
+      r('uplinkCommand'), r('connectedLine'), r('mountLine'), { pause: 180 },
+      r('dumpCommand'), r('dumpLines'), { pause: 320 },
+      r('compressionLine'), { pause: 260 },
+      `upload target: ${r('uploadTarget')}`,
+      r('uploadProgress'), r('cleanupLine'), r('exitLine'),
     ].flat();
   },
 

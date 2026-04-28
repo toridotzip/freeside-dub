@@ -77,13 +77,8 @@ export class AudioEngine {
       throw new Error(`Unsupported audio source type: ${source.type}`);
     }
 
-    return {
-      type: source.type,
-      url: source.url,
-      metadata: source.metadata ?? null,
-      label: source.label ?? null,
-      status: source.status ?? null,
-    };
+    const { type, url, metadata = null, label = null, status = null } = source;
+    return { type, url, metadata, label, status };
   }
 
   resetAnalysisState() {
@@ -275,18 +270,10 @@ export class AudioEngine {
   }
 
   getHistoryStats(history) {
-    let sum = 0;
-    for (let i = 0; i < history.length; i++) {
-      sum += history[i];
-    }
-
-    const avg = history.length > 0 ? sum / history.length : 0;
-    let varianceSum = 0;
-    for (let i = 0; i < history.length; i++) {
-      varianceSum += Math.pow(history[i] - avg, 2);
-    }
-
-    const variance = history.length > 0 ? varianceSum / history.length : 0;
+    const n = history.length;
+    if (n === 0) return { avg: 0, variance: 0 };
+    const avg = history.reduce((s, v) => s + v, 0) / n;
+    const variance = history.reduce((s, v) => s + (v - avg) ** 2, 0) / n;
     return { avg, variance };
   }
 
@@ -314,13 +301,7 @@ export class AudioEngine {
   }
 
   getRms() {
-    let sum = 0;
-
-    for (let i = 0; i < this.timeDataArray.length; i++) {
-      const sample = (this.timeDataArray[i] - 128) / 128;
-      sum += sample * sample;
-    }
-
+    const sum = this.timeDataArray.reduce((s, v) => { const t = (v - 128) / 128; return s + t * t; }, 0);
     return Math.sqrt(sum / this.timeDataArray.length);
   }
 
